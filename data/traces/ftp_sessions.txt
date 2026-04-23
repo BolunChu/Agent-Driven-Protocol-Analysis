@@ -1,0 +1,164 @@
+220 Welcome to FTP Server
+> USER anonymous
+331 User name okay, need password.
+> PASS anonymous@example.com
+230 User logged in, proceed.
+> PWD
+257 "/" is current directory.
+> LIST
+150 Opening data connection.
+226 Transfer complete.
+> QUIT
+221 Goodbye.
+---
+220 FTP Server Ready
+> USER admin
+331 Please specify the password.
+> PASS wrongpassword
+530 Login incorrect.
+> USER admin
+331 Please specify the password.
+> PASS admin123
+230 Login successful.
+> CWD /var/data
+250 Directory successfully changed.
+> LIST
+150 Here comes the directory listing.
+226 Directory send OK.
+> RETR report.txt
+150 Opening BINARY mode data connection.
+226 Transfer complete.
+> QUIT
+221 Goodbye.
+---
+220 FTP Service Ready
+> USER testuser
+331 Password required for testuser.
+> PASS test1234
+230 User testuser logged in.
+> SYST
+215 UNIX Type: L8
+> PWD
+257 "/home/testuser"
+> CWD /tmp
+250 CWD command successful.
+> LIST
+150 Opening data connection for file list.
+226 Transfer complete.
+> TYPE I
+200 Type set to I.
+> RETR data.bin
+150 Opening BINARY mode data connection for data.bin.
+226 Transfer complete.
+> QUIT
+221 Goodbye.
+---
+220 Welcome
+> USER ftpuser
+331 Password required.
+> PASS ftppass
+230 Logged in.
+> PASV
+227 Entering Passive Mode (127,0,0,1,200,15).
+> LIST
+150 Here comes the directory listing.
+226 Directory send OK.
+> STOR upload.txt
+150 Ok to send data.
+226 Transfer complete.
+> DELE upload.txt
+250 Delete operation successful.
+> QUIT
+221 Bye.
+---
+220 ProFTPD Server
+> USER anonymous
+331 Anonymous login ok, send your email as password.
+> PASS user@test.org
+230 Anonymous access granted.
+> FEAT
+211-Features:
+211 End
+> PWD
+257 "/"
+> CWD /pub
+250 CWD command successful.
+> NLST
+150 Opening ASCII mode data connection for file list.
+226 Transfer complete.
+> CWD /pub/docs
+250 CWD command successful.
+> LIST
+150 Opening ASCII mode data connection.
+226 Transfer complete.
+> QUIT
+221 Goodbye.
+---
+220 FTP Ready
+> PASS nouser
+530 Please login with USER first.
+> USER guest
+331 Password required.
+> PASS guest
+230 Login OK.
+> LIST
+150 Opening data connection.
+226 Done.
+> QUIT
+221 Bye.
+---
+220 FTP Server
+> USER upload_user
+331 Need password.
+> PASS up12345
+230 Logged in.
+> TYPE A
+200 Type set to A.
+> PWD
+257 "/upload"
+> STOR notes.txt
+150 Ok to send data.
+226 Transfer complete.
+> STOR log.csv
+150 Ok to send data.
+226 Transfer complete.
+> LIST
+150 Opening connection.
+226 Transfer complete.
+> QUIT
+221 Bye.
+---
+220 Welcome to Test FTP
+> USER readonly
+331 Password needed.
+> PASS readonly
+230 User logged in.
+> CWD /archive
+250 Directory changed.
+> LIST
+150 Opening connection.
+226 Done.
+> RETR old_report.pdf
+150 Opening BINARY mode.
+226 Transfer complete.
+> RETR backup.tar.gz
+150 Opening BINARY mode.
+226 Transfer complete.
+> QUIT
+221 Goodbye.
+---
+220 FTP Service
+> QUIT
+221 Goodbye.
+---
+220 Mini FTP
+> USER admin
+331 Password required.
+> PASS admin
+230 OK.
+> NOOP
+200 NOOP ok.
+> PWD
+257 "/"
+> QUIT
+221 Bye.
