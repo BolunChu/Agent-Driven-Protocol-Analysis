@@ -1,67 +1,147 @@
 """Spec Agent — extracts protocol knowledge from documentation summaries.
 
-Task 5: From protocol document summaries, extract message types, field
-semantics, ordering rules, and candidate protocol rules.
+Task 5 (LLM-upgraded): Uses Gemini function calling to extract message types,
+field semantics, ordering rules, and candidate protocol rules from docs and
+observed trace patterns.
 """
 
 from __future__ import annotations
+from collections import Counter
 import json
+import logging
 from sqlmodel import Session, select
 
 from ..models.domain import SessionTrace, MessageType, Invariant, Evidence
-from ..tools.protocol_tools import extract_message_types, extract_fields_and_constraints
 from ..tools.ftp_parser import parse_ftp_session
+from ..core.llm_client import call_with_tools
 
-# FTP spec knowledge base (used when no LLM is available)
-FTP_SPEC_KNOWLEDGE = {
-    "message_types": [
-        {"name": "USER", "template": "USER <username>", "fields": {"username": "string"},
-         "description": "Specify the user for authentication"},
-        {"name": "PASS", "template": "PASS <password>", "fields": {"password": "string"},
-         "description": "Specify the password for authentication"},
-        {"name": "QUIT", "template": "QUIT", "fields": {},
-         "description": "Terminate the FTP session"},
-        {"name": "PWD", "template": "PWD", "fields": {},
-         "description": "Print working directory"},
-        {"name": "CWD", "template": "CWD <directory>", "fields": {"directory": "string"},
-         "description": "Change working directory"},
-        {"name": "LIST", "template": "LIST [<path>]", "fields": {"path": "string (optional)"},
-         "description": "List files in directory"},
-        {"name": "RETR", "template": "RETR <filename>", "fields": {"filename": "string"},
-         "description": "Retrieve a file"},
-        {"name": "STOR", "template": "STOR <filename>", "fields": {"filename": "string"},
-         "description": "Store a file on server"},
-        {"name": "DELE", "template": "DELE <filename>", "fields": {"filename": "string"},
-         "description": "Delete a file"},
-        {"name": "TYPE", "template": "TYPE <type>", "fields": {"transfer_type": "A|I"},
-         "description": "Set transfer type (ASCII/Binary)"},
-        {"name": "PASV", "template": "PASV", "fields": {},
-         "description": "Enter passive mode"},
-        {"name": "PORT", "template": "PORT <h1,h2,h3,h4,p1,p2>", "fields": {"host": "string", "port": "int"},
-         "description": "Specify data connection port"},
-        {"name": "SYST", "template": "SYST", "fields": {},
-         "description": "Query system type"},
-        {"name": "FEAT", "template": "FEAT", "fields": {},
-         "description": "List supported features"},
-        {"name": "NOOP", "template": "NOOP", "fields": {},
-         "description": "No operation / keep alive"},
-    ],
-    "ordering_rules": [
-        "PASS must appear after USER",
-        "LIST, RETR, STOR require prior successful authentication (USER + PASS)",
-        "QUIT can be sent from any state",
-        "Data commands (LIST, RETR, STOR) typically require PASV or PORT first",
-    ],
-}
+logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Tool schemas for LLM function calling
+# ---------------------------------------------------------------------------
+
+SPEC_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "record_spec_analysis",
+            "description": "Record the complete protocol spec analysis in a single call.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "message_types": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {"type": "string"},
+                                "template": {"type": "string"},
+                                "fields": {
+                                    "type": "object",
+                                    "additionalProperties": {"type": "string"},
+                                },
+                                "description": {"type": "string"},
+                                "confidence": {"type": "number"},
+                            },
+                            "required": ["name", "template", "fields", "description", "confidence"],
+                        },
+                    },
+                    "ordering_rules": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "rule_text": {"type": "string"},
+                                "rule_type": {
+                                    "type": "string",
+                                    "enum": ["ordering", "field_constraint", "conditional", "state_requirement"],
+                                },
+                                "confidence": {"type": "number"},
+                                "evidence_snippet": {"type": "string"},
+                            },
+                            "required": ["rule_text", "rule_type", "confidence"],
+                        },
+                    },
+                    "field_constraints": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "message_type": {"type": "string"},
+                                "field_name": {"type": "string"},
+                                "constraint": {"type": "string"},
+                                "confidence": {"type": "number"},
+                            },
+                            "required": ["message_type", "field_name", "constraint", "confidence"],
+                        },
+                    },
+                },
+                "required": ["message_types", "ordering_rules", "field_constraints"],
+            },
+        },
+    },
+]
+
+SYSTEM_PROMPT = """You are an expert protocol analyst specializing in network protocol state machine extraction.
+
+Your task: analyze the provided FTP protocol documentation and session trace summaries, then call the provided tool exactly once to record ALL discovered protocol knowledge.
+
+Guidelines:
+- Include EVERY discovered FTP command in message_types
+- Include EVERY sequencing constraint in ordering_rules
+- Include every specific field requirement in field_constraints
+- Include commands observed in traces even if they are extension commands from server-specific implementations
+- Do not record server response pseudo-types such as RESP_220 or RESP_530 as message_types
+- Set confidence based on how strongly the evidence supports the claim (0.7-0.9 for doc evidence, 0.8-0.95 for observed traces)
+- Be thorough — extract all commands and rules you can identify
+- Return one comprehensive batch, not many small calls"""
+
+
+def _format_trace_summary(traces: list) -> str:
+    """Format trace sessions into a readable command-sequence summary."""
+    if not traces:
+        return "(no trace data available)"
+    summary_parts = []
+    for i, trace in enumerate(traces[:10]):
+        events = []
+        try:
+            ev_list = parse_ftp_session(trace.raw_content)
+            for ev in ev_list:
+                mt = ev.get("message_type", "?")
+                resp = ev.get("response")
+                code = resp.get("code", "?") if resp else "?"
+                events.append(f"  {mt} → {code}")
+        except Exception:
+            raw = trace.raw_content[:200]
+            events = [f"  (raw): {raw}"]
+        summary_parts.append(f"Session {i+1}:\n" + "\n".join(events[:15]))
+    return "\n\n".join(summary_parts)
+
+
+def _summarize_observed_commands(traces: list) -> str:
+    counts: Counter[str] = Counter()
+    for trace in traces:
+        try:
+            ev_list = parse_ftp_session(trace.raw_content)
+        except Exception:
+            ev_list = []
+        for ev in ev_list:
+            mt = ev.get("message_type", "")
+            if mt and not mt.startswith("RESP_") and mt != "UNKNOWN":
+                counts[mt] += 1
+    if not counts:
+        return "(no observed command summary available)"
+    return "\n".join(f"- {name}: {count}" for name, count in counts.most_common())
 
 
 def run_spec_agent(project_id: int, session: Session) -> dict:
-    """Run the Spec Agent to extract protocol knowledge from doc sources.
+    """Run the LLM-powered Spec Agent.
 
-    Looks at all doc-type SessionTraces, tries to parse them, then
-    creates MessageType and Invariant records with evidence bindings.
+    1. Loads doc sources and trace summaries as context
+    2. Calls Gemini via function calling to extract protocol knowledge
+    3. Stores MessageType and Invariant records with evidence
     """
-    # Gather doc sources
     docs = session.exec(
         select(SessionTrace).where(
             SessionTrace.project_id == project_id,
@@ -69,112 +149,227 @@ def run_spec_agent(project_id: int, session: Session) -> dict:
         )
     ).all()
 
-    # Extract knowledge from docs + built-in FTP spec
-    created_message_types = []
-    created_invariants = []
+    traces = session.exec(
+        select(SessionTrace).where(
+            SessionTrace.project_id == project_id,
+            SessionTrace.source_type == "trace",
+        )
+    ).all()
 
-    # Use built-in FTP knowledge as baseline
-    for mt_info in FTP_SPEC_KNOWLEDGE["message_types"]:
-        # Check if already exists
+    doc_content = "\n\n".join(d.raw_content for d in docs) if docs else "(no documentation provided)"
+    trace_summary = _format_trace_summary(traces)
+    observed_commands = _summarize_observed_commands(traces)
+
+    user_message = f"""## Protocol Documentation
+
+{doc_content}
+
+## Observed FTP Commands Across All Traces
+
+{observed_commands}
+
+## Observed Session Trace Patterns (first 10 sessions)
+
+{trace_summary}
+
+Please analyze the above and record all FTP message types, ordering rules, and field constraints you can identify."""
+
+    logger.info("Spec Agent: calling LLM for project %d", project_id)
+    tool_calls = call_with_tools(
+        system_prompt=SYSTEM_PROMPT,
+        user_message=user_message,
+        tools=SPEC_TOOLS,
+        max_iterations=1,
+    )
+    logger.info("Spec Agent: received %d tool calls", len(tool_calls))
+
+    created_message_types: list[str] = []
+    created_invariants: list[str] = []
+    fallback_used = False
+    payload = {}
+
+    if tool_calls and tool_calls[0]["tool"] == "record_spec_analysis":
+        payload = tool_calls[0]["args"]
+
+    for args in payload.get("message_types", []):
+        name = args.get("name", "").upper().strip()
+        if not name or name.startswith("RESP_"):
+            continue
         existing = session.exec(
             select(MessageType).where(
                 MessageType.project_id == project_id,
-                MessageType.name == mt_info["name"],
+                MessageType.name == name,
             )
         ).first()
-
         if not existing:
             mt = MessageType(
                 project_id=project_id,
-                name=mt_info["name"],
-                template=mt_info["template"],
-                fields_json=json.dumps(mt_info["fields"]),
-                confidence=0.7,  # from spec, moderate confidence
+                name=name,
+                template=args.get("template", ""),
+                fields_json=json.dumps(args.get("fields", {})),
+                confidence=float(args.get("confidence", 0.7)),
             )
             session.add(mt)
             session.commit()
             session.refresh(mt)
-            created_message_types.append(mt.name)
-
-            # Create evidence binding
             ev = Evidence(
                 project_id=project_id,
                 claim_type="message_type",
                 claim_id=mt.id,
                 source_type="doc",
-                source_ref="FTP RFC 959 spec summary",
-                snippet=f"{mt_info['name']}: {mt_info['description']}",
-                score=0.7,
+                source_ref="LLM Spec Agent (Gemini function calling)",
+                snippet=args.get("description", name),
+                score=float(args.get("confidence", 0.7)),
             )
             session.add(ev)
+            created_message_types.append(name)
 
-    # Create ordering invariants
-    for rule in FTP_SPEC_KNOWLEDGE["ordering_rules"]:
+    for args in payload.get("ordering_rules", []):
+        rule_text = args.get("rule_text", "").strip()
+        if not rule_text:
+            continue
         existing = session.exec(
             select(Invariant).where(
                 Invariant.project_id == project_id,
-                Invariant.rule_text == rule,
+                Invariant.rule_text == rule_text,
             )
         ).first()
-
         if not existing:
             inv = Invariant(
                 project_id=project_id,
-                rule_text=rule,
-                rule_type="ordering",
-                confidence=0.7,
+                rule_text=rule_text,
+                rule_type=args.get("rule_type", "ordering"),
+                confidence=float(args.get("confidence", 0.7)),
                 status="hypothesis",
             )
             session.add(inv)
             session.commit()
             session.refresh(inv)
-            created_invariants.append(rule)
-
+            snippet = args.get("evidence_snippet", rule_text)
             ev = Evidence(
                 project_id=project_id,
                 claim_type="invariant",
                 claim_id=inv.id,
                 source_type="doc",
-                source_ref="FTP RFC 959 spec summary",
-                snippet=rule,
-                score=0.7,
+                source_ref="LLM Spec Agent (Gemini function calling)",
+                snippet=snippet[:500],
+                score=float(args.get("confidence", 0.7)),
             )
             session.add(ev)
+            created_invariants.append(rule_text)
 
-    # Also parse any doc text for additional message types
-    for doc in docs:
-        try:
-            events = parse_ftp_session(doc.raw_content)
-            if events:
-                result = extract_message_types(events)
-                for mt_info in result.get("message_types", []):
-                    existing = session.exec(
-                        select(MessageType).where(
-                            MessageType.project_id == project_id,
-                            MessageType.name == mt_info["name"],
-                        )
-                    ).first()
-                    if not existing:
-                        mt = MessageType(
-                            project_id=project_id,
-                            name=mt_info["name"],
-                            template="",
-                            fields_json="{}",
-                            confidence=0.5,
-                        )
-                        session.add(mt)
-                        created_message_types.append(mt_info["name"])
-                # Update parsed content
-                doc.parsed_content = json.dumps(events, ensure_ascii=False)
-                session.add(doc)
-        except Exception:
-            pass
+    for args in payload.get("field_constraints", []):
+        msg_type = args.get("message_type", "").upper()
+        field = args.get("field_name", "")
+        constraint = args.get("constraint", "")
+        if msg_type and field and constraint:
+            rule_text = f"{msg_type}.{field}: {constraint}"
+            existing = session.exec(
+                select(Invariant).where(
+                    Invariant.project_id == project_id,
+                    Invariant.rule_text == rule_text,
+                )
+            ).first()
+            if not existing:
+                inv = Invariant(
+                    project_id=project_id,
+                    rule_text=rule_text,
+                    rule_type="field_constraint",
+                    confidence=float(args.get("confidence", 0.7)),
+                    status="hypothesis",
+                )
+                session.add(inv)
+                session.commit()
+                session.refresh(inv)
+                ev = Evidence(
+                    project_id=project_id,
+                    claim_type="invariant",
+                    claim_id=inv.id,
+                    source_type="doc",
+                    source_ref="LLM Spec Agent field analysis",
+                    snippet=rule_text,
+                    score=float(args.get("confidence", 0.7)),
+                )
+                session.add(ev)
+                created_invariants.append(rule_text)
+
+    if not payload:
+        logger.warning("Spec Agent: LLM returned no tool calls, using rule-based fallback")
+        fallback_used = True
+        _apply_fallback(project_id, session, created_message_types, created_invariants)
 
     session.commit()
 
     return {
         "agent": "spec",
+        "llm_tool_calls": len(tool_calls),
+        "fallback_used": fallback_used,
         "message_types_created": created_message_types,
         "invariants_created": created_invariants,
         "docs_processed": len(docs),
+        "traces_summarized": len(traces),
     }
+
+
+def _apply_fallback(project_id: int, session: Session,
+                    created_mt: list, created_inv: list) -> None:
+    """Rule-based fallback if LLM is unavailable."""
+    BASELINE_MT = [
+        ("USER", "USER <username>", {"username": "string"}, 0.8),
+        ("PASS", "PASS <password>", {"password": "string"}, 0.8),
+        ("QUIT", "QUIT", {}, 0.9),
+        ("LIST", "LIST [<path>]", {"path": "string"}, 0.8),
+        ("RETR", "RETR <filename>", {"filename": "string"}, 0.8),
+        ("STOR", "STOR <filename>", {"filename": "string"}, 0.8),
+        ("PWD", "PWD", {}, 0.8),
+        ("CWD", "CWD <directory>", {"directory": "string"}, 0.8),
+        ("PASV", "PASV", {}, 0.75),
+        ("SYST", "SYST", {}, 0.75),
+        ("FEAT", "FEAT", {}, 0.75),
+        ("NOOP", "NOOP", {}, 0.75),
+        ("TYPE", "TYPE <A|I>", {"transfer_type": "string"}, 0.75),
+        ("DELE", "DELE <filename>", {"filename": "string"}, 0.7),
+    ]
+    BASELINE_RULES = [
+        ("PASS must appear after USER", "ordering", 0.9),
+        ("LIST, RETR, STOR require prior successful authentication", "ordering", 0.85),
+        ("QUIT terminates the session from any state", "ordering", 0.9),
+        ("DATA commands typically require PASV or PORT first", "ordering", 0.7),
+    ]
+    for name, template, fields, conf in BASELINE_MT:
+        existing = session.exec(
+            select(MessageType).where(
+                MessageType.project_id == project_id,
+                MessageType.name == name,
+            )
+        ).first()
+        if not existing:
+            mt = MessageType(project_id=project_id, name=name,
+                             template=template, fields_json=json.dumps(fields),
+                             confidence=conf)
+            session.add(mt)
+            session.commit()
+            session.refresh(mt)
+            ev = Evidence(project_id=project_id, claim_type="message_type",
+                          claim_id=mt.id, source_type="doc",
+                          source_ref="rule-based fallback", snippet=name, score=conf)
+            session.add(ev)
+            created_mt.append(name)
+    for rule_text, rule_type, conf in BASELINE_RULES:
+        existing = session.exec(
+            select(Invariant).where(
+                Invariant.project_id == project_id,
+                Invariant.rule_text == rule_text,
+            )
+        ).first()
+        if not existing:
+            inv = Invariant(project_id=project_id, rule_text=rule_text,
+                            rule_type=rule_type, confidence=conf, status="hypothesis")
+            session.add(inv)
+            session.commit()
+            session.refresh(inv)
+            ev = Evidence(project_id=project_id, claim_type="invariant",
+                          claim_id=inv.id, source_type="doc",
+                          source_ref="rule-based fallback", snippet=rule_text, score=conf)
+            session.add(ev)
+            created_inv.append(rule_text)

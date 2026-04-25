@@ -14,6 +14,78 @@
 
 ---
 
+## 当前实施进展（2026-04-25）
+
+当前仓库内已经打通一条可运行的 FTP 协议分析流程，采用 ProFuzzBench FTP seeds、本地 `pyftpdlib` FTP 服务，以及单轮批量 function calling 的多 Agent 分析链路。
+
+### 已完成能力
+
+- ProFuzzBench FTP seed 数据已接入，目录为 `data/traces/profuzzbench/`
+- 本地 FTP 探测服务启动脚本已提供：`scripts/start_ftp_server.py`
+- 完整分析流程脚本已提供：`scripts/run_full_analysis.py`
+- LLM 接入层已实现：`backend/app/core/llm_client.py`
+- Spec Agent 已升级为 LLM function calling：`backend/app/services/spec_agent_service.py`
+- Trace Agent 已升级为 LLM function calling：`backend/app/services/trace_agent_service.py`
+- Verifier Agent 已升级为“规则评分 + 单轮批量 LLM 复核”的混合模式：`backend/app/services/verifier_service.py`
+- Probe Agent 已升级为“规则回退 + 单轮批量 LLM probe planning”的混合模式：`backend/app/services/probe_service.py`
+- FTP parser 已扩展到更多 ProFuzzBench 观察到的 FTP 命令与参数格式：`backend/app/tools/ftp_parser.py`
+- 评估结果已更新导出到 `data/outputs/evaluation_report_6.json`
+
+### 当前推荐运行方式
+
+先启动本地 FTP 服务：
+
+```bash
+python3 scripts/start_ftp_server.py
+```
+
+再执行完整分析流程：
+
+```bash
+python3 scripts/run_full_analysis.py
+```
+
+如果只想验证 provider 的 function calling 能力，使用：
+
+```bash
+python3 scripts/test_llm_single_turn_tools.py
+```
+
+### 当前评估结果摘要
+
+基于 1 份 FTP 文档、10 条本地 FTP 会话、39 条 ProFuzzBench seeds 的一次完整运行，得到：
+
+- Message types: `41`
+- States: `6`
+- Transitions: `11`
+- Invariants: `10`
+- Evidence records: `71`
+- Probe runs: `3`
+- Transition status 分布：`supported=11`，`hypothesis=0`，`disputed=0`
+- Invariant status 分布：`supported=10`，`hypothesis=0`，`disputed=0`
+- Fallback 使用情况：`Spec=False`，`Trace=False`
+
+### 当前 function calling 约束与实现策略
+
+当前 provider 的 OpenAI-compatible 接口支持单轮 function calling，但在多轮 tool continuation 场景下会触发缺失 `thought_signature` 的服务端错误。因此当前实现采用以下策略：
+
+- `llm_client.py` 使用单轮请求，不做多轮 tool continuation
+- `tool_choice` 使用 `required`
+- Spec Agent 改为一次性返回 `message_types[]`、`ordering_rules[]`、`field_constraints[]`
+- Trace Agent 改为一次性返回 `states[]`、`transitions[]`、`observed_message_types[]`
+- SDK 默认重试已关闭，便于快速暴露真实报错
+
+这意味着当前方案优先保证稳定性与可跑通性，而不是依赖 provider 的多轮 tool loop 行为。
+
+### 当前已知限制
+
+- Verifier / Probe 虽已具备单轮批量 LLM 辅助，但目前仍保留强规则回退逻辑，属于混合模式而非纯 LLM 模式
+- 部分非常规命令（如 `CAPI`、`PRUE`）目前只能做“消息类型识别”，尚未建立稳定的状态语义
+- 当前 `supported` 结果偏多，后续可继续细化 Verifier 的保守性阈值，避免过度确认
+- 当前更适合 FTP 这类文本协议；对复杂二进制协议仍需额外解析层支持
+
+---
+
 ## 二、推荐技术栈
 
 ### 后端

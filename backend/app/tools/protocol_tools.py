@@ -98,7 +98,7 @@ def infer_candidate_states(input_sessions: list[list[dict]]) -> dict:
 
     for session in input_sessions:
         for i, event in enumerate(session):
-            resp = event.get("response", {})
+            resp = event.get("response") or {}
             code = resp.get("code", "")
             mt = event.get("message_type", "")
 
@@ -116,10 +116,18 @@ def infer_candidate_states(input_sessions: list[list[dict]]) -> dict:
                     states.append({"name": "CLOSED", "description": "Session terminated"})
                     seen_patterns.add("CLOSED")
             # Data transfer state
-            if mt in ("LIST", "RETR", "STOR", "NLST"):
+            if mt in ("LIST", "RETR", "STOR", "NLST", "MLST", "MLSD", "APPE"):
                 if "DATA_TRANSFER" not in seen_patterns:
                     states.append({"name": "DATA_TRANSFER", "description": "Data transfer in progress"})
                     seen_patterns.add("DATA_TRANSFER")
+            if mt == "RNFR":
+                if "RENAME_PENDING" not in seen_patterns:
+                    states.append({"name": "RENAME_PENDING", "description": "Rename source accepted, waiting for RNTO"})
+                    seen_patterns.add("RENAME_PENDING")
+            if mt == "REIN":
+                if "RESETTING" not in seen_patterns:
+                    states.append({"name": "RESETTING", "description": "Session reinitialization in progress"})
+                    seen_patterns.add("RESETTING")
 
     return {"states": states}
 

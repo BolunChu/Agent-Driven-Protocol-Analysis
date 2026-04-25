@@ -2,10 +2,58 @@
 
 from __future__ import annotations
 import json
+import logging
 import socket
 from sqlmodel import Session, select
 from ..models.domain import Transition, Invariant, Evidence, ProbeRun
 from ..core.config import settings
+from ..core.llm_client import call_with_tools
+
+logger = logging.getLogger(__name__)
+
+
+PROBE_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "record_probe_plan",
+            "description": "Record the probe plan for selected claims in one batch.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "probes": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "description": {"type": "string"},
+                                "commands": {
+                                    "type": "array",
+                                    "items": {"type": "string"},
+                                },
+                                "rationale": {"type": "string"},
+                            },
+                            "required": ["description", "commands", "rationale"],
+                        },
+                    },
+                },
+                "required": ["probes"],
+            },
+        },
+    }
+]
+
+PROBE_SYSTEM_PROMPT = """You are a conservative FTP probe planner.
+
+Choose up to three high-value probes that can be executed against a local FTP server.
+Call the tool exactly once.
+
+Guidelines:
+- Prefer short command sequences that validate sequencing or authorization assumptions
+- Use realistic FTP commands only
+- Keep descriptions exactly unchanged so they can be matched back to claims
+- Avoid destructive or risky operations when a cheaper probe can answer the same question
+- Prefer commands compatible with standard FTP servers and ProFuzzBench-observed message types"""
 
 
 def _ftp_exchange(host: str, port: int, commands: list[str], timeout: float = 5.0) -> list[dict]:
@@ -40,8 +88,31 @@ def _generate_probe_commands(target: dict) -> list[str]:
             return ["USER anonymous"]
         elif claim.from_state == "AUTH_PENDING" and mt == "PASS":
             return ["USER anonymous", "PASS anonymous@test.com"]
-        elif mt in ("LIST", "PWD", "CWD"):
+        elif mt in ("LIST", "PWD", "XPWD", "CWD", "XCWD", "STAT", "SYST", "FEAT", "HELP"):
             return ["USER anonymous", "PASS anonymous@test.com", mt if mt != "CWD" else "CWD /"]
+        elif mt in ("SIZE", "RETR", "MLST"):
+            return ["USER anonymous", "PASS anonymous@test.com", f"{mt} readme.txt"]
+        elif mt in ("NLST", "MLSD"):
+            return ["USER anonymous", "PASS anonymous@test.com", f"{mt} pub"]
+        elif mt in ("MKD", "XMKD"):
+            return ["USER anonymous", "PASS anonymous@test.com", f"{mt} scratchdir"]
+        elif mt in ("RMD", "XRMD"):
+            return ["USER anonymous", "PASS anonymous@test.com", "MKD scratchdir", f"{mt} scratchdir"]
+        elif mt == "RNFR":
+            return ["USER anonymous", "PASS anonymous@test.com", "RNFR readme.txt", "RNTO readme_renamed.txt"]
+        elif mt == "RNTO":
+            return ["USER anonymous", "PASS anonymous@test.com", "RNFR readme.txt", "RNTO readme_renamed.txt"]
+        elif mt == "REIN":
+            return ["USER anonymous", "PASS anonymous@test.com", "REIN"]
+        elif mt in ("PASV", "EPSV"):
+            return ["USER anonymous", "PASS anonymous@test.com", mt]
+        elif mt in ("PORT", "EPRT"):
+            return ["USER anonymous", "PASS anonymous@test.com", "PORT 127,0,0,1,234,56" if mt == "PORT" else "EPRT |1|127.0.0.1|60001|"]
+        elif mt in ("TYPE", "MODE", "STRU"):
+            arg = {"TYPE": "I", "MODE": "S", "STRU": "F"}[mt]
+            return ["USER anonymous", "PASS anonymous@test.com", f"{mt} {arg}"]
+        elif mt == "NOOP":
+            return ["USER anonymous", "PASS anonymous@test.com", "NOOP"]
         elif mt == "QUIT":
             return ["QUIT"]
         else:
@@ -54,6 +125,36 @@ def _generate_probe_commands(target: dict) -> list[str]:
             return ["LIST"]
         return ["USER anonymous", "PASS anonymous@test.com"]
     return ["NOOP"]
+
+
+def _llm_plan_probes(targets: list[dict]) -> dict[str, dict]:
+    if not targets:
+        return {}
+    user_message = "## Candidate Claims For Probe Planning\n\n"
+    for target in targets:
+        claim = target["claim"]
+        confidence = getattr(claim, "confidence", 0.0)
+        status = getattr(claim, "status", "hypothesis")
+        user_message += (
+            f"- description: {target['description']}\n"
+            f"  type: {target['type']}\n"
+            f"  status: {status}\n"
+            f"  confidence: {confidence}\n"
+        )
+    try:
+        tool_calls = call_with_tools(
+            system_prompt=PROBE_SYSTEM_PROMPT,
+            user_message=user_message,
+            tools=PROBE_TOOLS,
+            max_iterations=1,
+        )
+    except Exception as exc:
+        logger.warning("Probe LLM planning failed, falling back to deterministic planning: %s", exc)
+        return {}
+    if not tool_calls or tool_calls[0]["tool"] != "record_probe_plan":
+        return {}
+    probes = tool_calls[0]["args"].get("probes", [])
+    return {probe.get("description", ""): probe for probe in probes if probe.get("description")}
 
 
 def run_probe_agent(project_id: int, session: Session) -> dict:
@@ -79,15 +180,46 @@ def run_probe_agent(project_id: int, session: Session) -> dict:
                 if len(probe_targets) >= 3:
                     break
 
+    if not probe_targets:
+        priority_messages = {"USER", "PASS", "LIST", "RETR", "STOR", "RNFR", "RNTO", "QUIT", "REIN"}
+        ranked_transitions = sorted(
+            transitions,
+            key=lambda t: (
+                0 if t.message_type in priority_messages else 1,
+                t.confidence,
+            ),
+        )
+        for t in ranked_transitions:
+            if t.confidence < 0.95:
+                probe_targets.append({
+                    "type": "transition",
+                    "claim": t,
+                    "description": f"{t.from_state} -> {t.to_state} via {t.message_type}",
+                })
+            if len(probe_targets) >= 3:
+                break
+
+    if not probe_targets:
+        ranked_invariants = sorted(invariants, key=lambda inv: inv.confidence)
+        for inv in ranked_invariants:
+            if inv.confidence < 0.95:
+                probe_targets.append({"type": "invariant", "claim": inv, "description": inv.rule_text})
+            if len(probe_targets) >= 3:
+                break
+
+    probe_targets = probe_targets[:3]
+    llm_probe_map = _llm_plan_probes(probe_targets)
+
     for target in probe_targets:
-        cmds = _generate_probe_commands(target)
+        llm_probe = llm_probe_map.get(target["description"], {})
+        cmds = llm_probe.get("commands") or _generate_probe_commands(target)
         exchange = _ftp_exchange(settings.FTP_PROBE_HOST, settings.FTP_PROBE_PORT, cmds)
 
         probe_run = ProbeRun(
             project_id=project_id, target_host=settings.FTP_PROBE_HOST,
             target_port=settings.FTP_PROBE_PORT, goal=f"Verify: {target['description']}",
             request_payload=json.dumps(cmds), response_payload=json.dumps(exchange),
-            result_summary=f"Executed {len(exchange)} exchanges",
+            result_summary=llm_probe.get("rationale", f"Executed {len(exchange)} exchanges"),
         )
         session.add(probe_run)
         session.commit()

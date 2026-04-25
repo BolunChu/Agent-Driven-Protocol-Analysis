@@ -21,24 +21,43 @@ FTP_RESPONSE_RE = re.compile(
 FIELD_EXTRACTORS: dict[str, callable] = {
     "USER": lambda args: {"username": args.strip()},
     "PASS": lambda args: {"password": args.strip()},
+    "ACCT": lambda args: {"account": args.strip()},
     "CWD": lambda args: {"directory": args.strip()},
+    "XCWD": lambda args: {"directory": args.strip()},
     "RETR": lambda args: {"filename": args.strip()},
     "STOR": lambda args: {"filename": args.strip()},
+    "APPE": lambda args: {"filename": args.strip()},
     "DELE": lambda args: {"filename": args.strip()},
+    "SIZE": lambda args: {"filename": args.strip()},
     "MKD": lambda args: {"directory": args.strip()},
+    "XMKD": lambda args: {"directory": args.strip()},
     "RMD": lambda args: {"directory": args.strip()},
+    "XRMD": lambda args: {"directory": args.strip()},
     "RNFR": lambda args: {"filename": args.strip()},
     "RNTO": lambda args: {"filename": args.strip()},
     "TYPE": lambda args: {"transfer_type": args.strip()},
+    "MODE": lambda args: {"transfer_mode": args.strip()},
+    "STRU": lambda args: {"file_structure": args.strip()},
     "PORT": lambda args: _parse_port_args(args),
+    "EPRT": lambda args: _parse_eprt_args(args),
     "PASV": lambda args: {},
+    "EPSV": lambda args: {},
     "LIST": lambda args: {"path": args.strip()} if args.strip() else {},
     "NLST": lambda args: {"path": args.strip()} if args.strip() else {},
+    "MLST": lambda args: {"path": args.strip()} if args.strip() else {},
+    "MLSD": lambda args: {"path": args.strip()} if args.strip() else {},
     "PWD": lambda args: {},
+    "XPWD": lambda args: {},
+    "CDUP": lambda args: {},
+    "XCUP": lambda args: {},
+    "REIN": lambda args: {},
+    "SMNT": lambda args: {"mount_path": args.strip()} if args.strip() else {},
     "QUIT": lambda args: {},
     "NOOP": lambda args: {},
     "SYST": lambda args: {},
     "FEAT": lambda args: {},
+    "HELP": lambda args: {"topic": args.strip()} if args.strip() else {},
+    "STAT": lambda args: {"path": args.strip()} if args.strip() else {},
 }
 
 
@@ -50,6 +69,21 @@ def _parse_port_args(args: str) -> dict:
         port = int(parts[4]) * 256 + int(parts[5])
         return {"host": host, "port": port}
     return {"raw_args": args.strip()}
+
+
+def _parse_eprt_args(args: str) -> dict:
+    value = args.strip()
+    parts = value.split("|")
+    if len(parts) >= 5:
+        try:
+            return {
+                "protocol": parts[1],
+                "host": parts[2],
+                "port": int(parts[3]),
+            }
+        except ValueError:
+            return {"raw_args": value}
+    return {"raw_args": value}
 
 
 def parse_ftp_command(line: str) -> dict | None:
