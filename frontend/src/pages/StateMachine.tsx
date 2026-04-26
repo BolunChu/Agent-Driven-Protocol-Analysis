@@ -104,12 +104,20 @@ function layoutNodes(states: StateItem[]): NodePos[] {
     col++;
   }
   return placed;
-}function getEdgePath(
+}
+
+interface EdgeControl {
+  x: number;
+  y: number;
+}
+
+function getEdgePath(
   from: NodePos,
   to: NodePos,
   index: number,
-  total: number
-): { path: string; labelX: number; labelY: number } {
+  total: number,
+  customControl?: EdgeControl
+): { path: string; labelX: number; labelY: number; controlX: number; controlY: number } {
   const fx = from.x + NODE_W / 2;
   const fy = from.y + NODE_H / 2;
   const tx = to.x + NODE_W / 2;
@@ -127,27 +135,29 @@ function layoutNodes(states: StateItem[]): NodePos[] {
       path: `M ${x1} ${y1} A ${r} ${r} 0 ${largeArc} ${sweep} ${x2} ${y2}`,
       labelX: fx + NODE_W / 2 + r + 5,
       labelY: fy + 5,
+      controlX: fx + NODE_W / 2 + r,
+      controlY: fy + 5,
     };
   }
 
-  const isReverse = from.state.name > to.state.name;
-  const n1 = isReverse ? to : from;
-  const n2 = isReverse ? from : to;
-  const bfx = n1.x + NODE_W / 2;
-  const bfy = n1.y + NODE_H / 2;
-  const btx = n2.x + NODE_W / 2;
-  const bty = n2.y + NODE_H / 2;
-  const dx = btx - bfx;
-  const dy = bty - bfy;
+  let midX, midY;
+  const dx = tx - fx;
+  const dy = ty - fy;
   const len = Math.sqrt(dx * dx + dy * dy) || 1;
   const nx = -dy / len; 
   const ny = dx / len;  
-  const spread = 30;
-  const dist = (index - (total - 1) / 2) * spread;
-  const midX = (fx + tx) / 2 + nx * dist;
-  const midY = (fy + ty) / 2 + ny * dist;
 
-  const t = 0.35 + (index / Math.max(total, 1)) * 0.3; 
+  if (customControl) {
+    midX = customControl.x;
+    midY = customControl.y;
+  } else {
+    const spread = 30;
+    const dist = (index - (total - 1) / 2) * spread;
+    midX = (fx + tx) / 2 + nx * dist;
+    midY = (fy + ty) / 2 + ny * dist;
+  }
+
+  const t = 0.5; // Fixed midpoint for 3-point arc visual
   const invT = 1 - t;
   const lx = invT * invT * fx + 2 * invT * t * midX + t * t * tx;
   const ly = invT * invT * fy + 2 * invT * t * midY + t * t * ty;
@@ -156,8 +166,12 @@ function layoutNodes(states: StateItem[]): NodePos[] {
     path: `M ${fx} ${fy} Q ${midX} ${midY} ${tx} ${ty}`,
     labelX: lx + nx * 5,
     labelY: ly + ny * 5,
+    controlX: midX,
+    controlY: midY,
   };
-}export default function StateMachine() {
+}
+
+export default function StateMachine() {
   const [states, setStates] = useState<StateItem[]>([]);
   const [transitions, setTransitions] = useState<TransitionItem[]>([]);
   const [evidence, setEvidence] = useState<EvidenceItem[]>([]);
@@ -166,9 +180,11 @@ function layoutNodes(states: StateItem[]): NodePos[] {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { projectId } = useProjectContext();
 
-  // Draggable node state
+  // Draggable state
   const [nodes, setNodes] = useState<NodePos[]>([]);
+  const [edgeControls, setEdgeControls] = useState<Record<number, EdgeControl>>({});
   const [draggingNode, setDraggingNode] = useState<string | null>(null);
+  const [draggingEdge, setDraggingEdge] = useState<number | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
@@ -177,6 +193,7 @@ function layoutNodes(states: StateItem[]): NodePos[] {
       setTransitions([]);
       setEvidence([]);
       setNodes([]);
+      setEdgeControls({});
       setLoading(false);
       return;
     }
@@ -190,8 +207,8 @@ function layoutNodes(states: StateItem[]): NodePos[] {
         setStates(s);
         setTransitions(t);
         setEvidence(e);
-        // Initialize nodes with layout
         setNodes(layoutNodes(s));
+        setEdgeControls({}); 
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -199,7 +216,6 @@ function layoutNodes(states: StateItem[]): NodePos[] {
 
   const nodeMap = new Map(nodes.map((n) => [n.state.name, n]));
 
-  // Group transitions by from->to for offset calculation
   const edgeGroups = new Map<string, TransitionItem[]>();
   transitions.forEach((t) => {
     const key = [t.from_state, t.to_state].sort().join("|");
@@ -207,37 +223,51 @@ function layoutNodes(states: StateItem[]): NodePos[] {
     edgeGroups.get(key)!.push(t);
   });
 
-  // Drag handlers
-  const handleMouseDown = (e: React.MouseEvent, nodeName: string, x: number, y: number) => {
+  const handleMouseDownNode = (e: React.MouseEvent, nodeName: string, x: number, y: number) => {
     setDraggingNode(nodeName);
-    // Get mouse pos relative to node
-    const svg = (e.currentTarget as SVGElement).closest("svg");
+    const svg = (e.currentTarget as Element).closest("svg") as SVGSVGElement;
     if (!svg) return;
     const pt = svg.createSVGPoint();
-    pt.x = e.clientX;
-    pt.y = e.clientY;
+    pt.x = e.clientX; pt.y = e.clientY;
+    const transformed = pt.matrixTransform(svg.getScreenCTM()?.inverse());
+    setDragOffset({ x: transformed.x - x, y: transformed.y - y });
+    e.stopPropagation();
+  };
+
+  const handleMouseDownEdge = (e: React.MouseEvent, transitionId: number, x: number, y: number) => {
+    setDraggingEdge(transitionId);
+    const svg = (e.currentTarget as Element).closest("svg") as SVGSVGElement;
+    if (!svg) return;
+    const pt = svg.createSVGPoint();
+    pt.x = e.clientX; pt.y = e.clientY;
     const transformed = pt.matrixTransform(svg.getScreenCTM()?.inverse());
     setDragOffset({ x: transformed.x - x, y: transformed.y - y });
     e.stopPropagation();
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!draggingNode) return;
-    const svg = e.currentTarget as SVGElement;
+    const svg = e.currentTarget as SVGSVGElement;
     const pt = svg.createSVGPoint();
-    pt.x = e.clientX;
-    pt.y = e.clientY;
+    pt.x = e.clientX; pt.y = e.clientY;
     const transformed = pt.matrixTransform(svg.getScreenCTM()?.inverse());
-    
-    setNodes(prev => prev.map(n => 
-      n.state.name === draggingNode 
-        ? { ...n, x: transformed.x - dragOffset.x, y: transformed.y - dragOffset.y }
-        : n
-    ));
+
+    if (draggingNode) {
+      setNodes(prev => prev.map(n => 
+        n.state.name === draggingNode 
+          ? { ...n, x: transformed.x - dragOffset.x, y: transformed.y - dragOffset.y }
+          : n
+      ));
+    } else if (draggingEdge !== null) {
+      setEdgeControls(prev => ({
+        ...prev,
+        [draggingEdge]: { x: transformed.x - dragOffset.x, y: transformed.y - dragOffset.y }
+      }));
+    }
   };
 
   const handleMouseUp = () => {
     setDraggingNode(null);
+    setDraggingEdge(null);
   };
 
   const handleEdgeClick = (t: TransitionItem) => {
@@ -250,11 +280,7 @@ function layoutNodes(states: StateItem[]): NodePos[] {
     : [];
 
   if (loading) {
-    return (
-      <div style={{ textAlign: "center", padding: 100 }}>
-        <Spin size="large" />
-      </div>
-    );
+    return <div style={{ textAlign: "center", padding: 100 }}><Spin size="large" /></div>;
   }
 
   if (states.length === 0) {
@@ -272,44 +298,29 @@ function layoutNodes(states: StateItem[]): NodePos[] {
   }
 
   return (
-    <div className="fade-in" style={{ userSelect: draggingNode ? "none" : "auto" }}>
+    <div className="fade-in" style={{ userSelect: (draggingNode || draggingEdge !== null) ? "none" : "auto" }}>
       <div className="page-header">
         <h1>Protocol State Machine</h1>
-        <p>
-          Interactive state transition graph — <b>Drag nodes</b> to reorganize, click edges to view evidence
-        </p>
+        <p>Interactive graph — <b>Drag nodes</b> or <b>drag edge handles</b> to reorganize layout</p>
       </div>
 
       <div className="graph-container" style={{ padding: 0, overflow: "hidden", background: "var(--bg-secondary)" }}>
         <svg 
-          width="100%" 
-          height="700" 
-          viewBox="0 0 1000 800"
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseUp}
-          style={{ cursor: draggingNode ? "grabbing" : "default" }}
+          width="100%" height="750" viewBox="0 0 1000 850"
+          onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}
+          style={{ cursor: (draggingNode || draggingEdge !== null) ? "grabbing" : "default" }}
         >
           <defs>
-            <marker id="arrow" viewBox="0 0 10 8" refX="9" refY="4"
-              markerWidth="8" markerHeight="6" orient="auto-start-reverse">
+            <marker id="arrow" viewBox="0 0 10 8" refX="9" refY="4" markerWidth="8" markerHeight="6" orient="auto-start-reverse">
               <path d="M 0 0 L 10 4 L 0 8 z" fill="#60a5fa" opacity="0.7" />
             </marker>
-            <marker id="arrow-green" viewBox="0 0 10 8" refX="9" refY="4"
-              markerWidth="8" markerHeight="6" orient="auto-start-reverse">
+            <marker id="arrow-green" viewBox="0 0 10 8" refX="9" refY="4" markerWidth="8" markerHeight="6" orient="auto-start-reverse">
               <path d="M 0 0 L 10 4 L 0 8 z" fill="#34d399" opacity="0.9" />
             </marker>
-            <marker id="arrow-red" viewBox="0 0 10 8" refX="9" refY="4"
-              markerWidth="8" markerHeight="6" orient="auto-start-reverse">
+            <marker id="arrow-red" viewBox="0 0 10 8" refX="9" refY="4" markerWidth="8" markerHeight="6" orient="auto-start-reverse">
               <path d="M 0 0 L 10 4 L 0 8 z" fill="#f87171" opacity="0.9" />
             </marker>
-            <filter id="glow">
-              <feGaussianBlur stdDeviation="3" result="blur" />
-              <feMerge>
-                <feMergeNode in="blur" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
+            <filter id="glow"><feGaussianBlur stdDeviation="3" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
           </defs>
 
           {/* Edges */}
@@ -322,54 +333,32 @@ function layoutNodes(states: StateItem[]): NodePos[] {
             const group = edgeGroups.get(key) || [t];
             const groupIdx = group.indexOf(t);
             
-            const { path, labelX, labelY } = getEdgePath(
-              fromNode, toNode, groupIdx, group.length
+            const { path, labelX, labelY, controlX, controlY } = getEdgePath(
+              fromNode, toNode, groupIdx, group.length, edgeControls[t.id]
             );
 
-            // Additional label staggering for multiple edges to avoid horizontal overlap
-            const staggerX = (groupIdx - (group.length - 1) / 2) * 15;
-            const finalLabelX = labelX + staggerX;
-
-            const edgeColor =
-              t.status === "supported" ? "#34d399" :
-              t.status === "disputed" ? "#f87171" : "#60a5fa";
-
-            const markerEnd =
-              t.status === "supported" ? "url(#arrow-green)" :
-              t.status === "disputed" ? "url(#arrow-red)" : "url(#arrow)";
+            const edgeColor = t.status === "supported" ? "#34d399" : t.status === "disputed" ? "#f87171" : "#60a5fa";
+            const markerEnd = t.status === "supported" ? "url(#arrow-green)" : t.status === "disputed" ? "url(#arrow-red)" : "url(#arrow)";
 
             return (
-              <g key={t.id} onClick={() => handleEdgeClick(t)} style={{ cursor: "pointer" }}>
+              <g key={t.id}>
                 <path
-                  d={path}
-                  stroke={edgeColor}
-                  strokeWidth={selected?.id === t.id ? 3 : 1.5}
-                  fill="none"
-                  opacity={selected?.id === t.id ? 1 : 0.6}
-                  markerEnd={markerEnd}
-                  className="edge-line"
+                  d={path} stroke={edgeColor} strokeWidth={selected?.id === t.id ? 3 : 1.5}
+                  fill="none" opacity={selected?.id === t.id ? 1 : 0.6} markerEnd={markerEnd}
+                  onClick={() => handleEdgeClick(t)} style={{ cursor: "pointer" }}
                 />
-                <path d={path} stroke="transparent" strokeWidth={15} fill="none" />
                 
-                {/* Staggered Label Background */}
-                <rect
-                  x={finalLabelX - 35}
-                  y={labelY - 12}
-                  width={70}
-                  height={26}
-                  rx={4}
-                  fill="white"
-                  fillOpacity={0.8}
+                {/* Control point handle */}
+                <circle 
+                  cx={controlX} cy={controlY} r={draggingEdge === t.id ? 6 : 4}
+                  fill="white" stroke={edgeColor} strokeWidth={2}
+                  onMouseDown={(e) => handleMouseDownEdge(e, t.id, controlX, controlY)}
+                  style={{ cursor: "grab", opacity: (draggingEdge === t.id || !draggingNode) ? 1 : 0.3 }}
                 />
 
-                <text x={finalLabelX} y={labelY} textAnchor="middle" className="edge-label"
-                  style={{ fontSize: 11, fontWeight: 600, fill: edgeColor }}>
-                  {t.message_type}
-                </text>
-                <text x={finalLabelX} y={labelY + 12} textAnchor="middle"
-                  style={{ fontSize: 9, fill: "var(--text-muted)", fontWeight: 500 }}>
-                  {(t.confidence * 100).toFixed(0)}%
-                </text>
+                <rect x={labelX - 35} y={labelY - 12} width={70} height={26} rx={4} fill="white" fillOpacity={0.8} style={{ pointerEvents: "none" }} />
+                <text x={labelX} y={labelY} textAnchor="middle" style={{ fontSize: 11, fontWeight: 600, fill: edgeColor, pointerEvents: "none" }}>{t.message_type}</text>
+                <text x={labelX} y={labelY + 12} textAnchor="middle" style={{ fontSize: 9, fill: "var(--text-muted)", fontWeight: 500, pointerEvents: "none" }}>{(t.confidence * 100).toFixed(0)}%</text>
               </g>
             );
           })}
@@ -379,53 +368,17 @@ function layoutNodes(states: StateItem[]): NodePos[] {
             const color = getColor(n.state.name);
             const isDragging = draggingNode === n.state.name;
             return (
-              <g 
-                key={n.state.name} 
-                className="state-node"
-                onMouseDown={(e) => handleMouseDown(e, n.state.name, n.x, n.y)}
-                style={{ cursor: isDragging ? "grabbing" : "grab" }}
-              >
-                <rect
-                  className="node-bg"
-                  x={n.x} y={n.y}
-                  width={NODE_W} height={NODE_H}
-                  rx={12} ry={12}
-                  fill={isDragging ? "var(--bg-secondary)" : "var(--bg-card)"}
-                  stroke={color}
-                  strokeWidth={isDragging ? 2.5 : 1.5}
-                  filter="url(#glow)"
-                />
-                <rect
-                  x={n.x + 1} y={n.y + 1}
-                  width={NODE_W - 2} height={3}
-                  rx={12} ry={2}
-                  fill={color}
-                  opacity={0.8}
-                />
-                <text
-                  x={n.x + NODE_W / 2}
-                  y={n.y + NODE_H / 2 + 2}
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  style={{ fill: color, fontSize: 13, fontWeight: 700, fontFamily: "var(--font-mono)", pointerEvents: "none" }}
-                >
-                  {n.state.name}
-                </text>
-                <text
-                  x={n.x + NODE_W / 2}
-                  y={n.y + NODE_H / 2 + 17}
-                  textAnchor="middle"
-                  style={{ fill: "var(--text-muted)", fontSize: 9, pointerEvents: "none" }}
-                >
-                  conf: {(n.state.confidence * 100).toFixed(0)}%
-                </text>
+              <g key={n.state.name} onMouseDown={(e) => handleMouseDownNode(e, n.state.name, n.x, n.y)} style={{ cursor: isDragging ? "grabbing" : "grab" }}>
+                <rect x={n.x} y={n.y} width={NODE_W} height={NODE_H} rx={12} ry={12} fill={isDragging ? "var(--bg-secondary)" : "var(--bg-card)"} stroke={color} strokeWidth={isDragging ? 2.5 : 1.5} filter="url(#glow)" />
+                <rect x={n.x + 1} y={n.y + 1} width={NODE_W - 2} height={3} rx={12} ry={2} fill={color} opacity={0.8} />
+                <text x={n.x + NODE_W / 2} y={n.y + NODE_H / 2 + 2} textAnchor="middle" dominantBaseline="middle" style={{ fill: color, fontSize: 13, fontWeight: 700, fontFamily: "var(--font-mono)", pointerEvents: "none" }}>{n.state.name}</text>
+                <text x={n.x + NODE_W / 2} y={n.y + NODE_H / 2 + 17} textAnchor="middle" style={{ fill: "var(--text-muted)", fontSize: 9, pointerEvents: "none" }}>conf: {(n.state.confidence * 100).toFixed(0)}%</text>
               </g>
             );
           })}
         </svg>
       </div>
-
-      <div style={{ display: "flex", gap: 24, marginTop: 16, justifyContent: "center" }}>
+<div style={{ display: "flex", gap: 24, marginTop: 16, justifyContent: "center" }}>
         <LegendItem color="#60a5fa" label="Hypothesis" />
         <LegendItem color="#34d399" label="Supported" />
         <LegendItem color="#f87171" label="Disputed" />

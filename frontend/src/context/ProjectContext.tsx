@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 
 interface ProjectContextValue {
   projectId: number | null;
-  setProjectId: (projectId: number | null) => void;
+  setProjectId: (next: number | null | ((prev: number | null) => number | null)) => void;
 }
 
 const ProjectContext = createContext<ProjectContextValue | undefined>(undefined);
@@ -20,13 +20,16 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const setProjectId = (nextProjectId: number | null) => {
-    setProjectIdState(nextProjectId);
-    if (nextProjectId == null) {
-      window.localStorage.removeItem("protoanalyzer.projectId");
-      return;
-    }
-    window.localStorage.setItem("protoanalyzer.projectId", String(nextProjectId));
+  const setProjectId = (next: number | null | ((prev: number | null) => number | null)) => {
+    setProjectIdState((prev) => {
+      const nextValue = typeof next === "function" ? next(prev) : next;
+      if (nextValue == null) {
+        window.localStorage.removeItem("protoanalyzer.projectId");
+      } else {
+        window.localStorage.setItem("protoanalyzer.projectId", String(nextValue));
+      }
+      return nextValue;
+    });
   };
 
   const value = useMemo(() => ({ projectId, setProjectId }), [projectId]);
