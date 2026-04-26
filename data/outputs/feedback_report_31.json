@@ -1,0 +1,36 @@
+{
+  "project_id": 31,
+  "unused_message_types": [
+    "C_DATA",
+    "C_EHLO",
+    "C_HELO",
+    "C_MAIL_FROM",
+    "C_QUIT",
+    "C_RCPT_TO",
+    "S_BYE_221",
+    "S_GREETING_220",
+    "S_OK_250",
+    "S_START_INPUT_354"
+  ],
+  "isolated_states": [],
+  "weak_transitions": [],
+  "supported_ratio": 0.0,
+  "probe_to_transition_ratio": 0.0,
+  "generated_seed_count": 0,
+  "recommended_actions": [
+    "Several observed message types are not yet represented in the state machine; prioritize seeds and probes for: C_DATA, C_EHLO, C_HELO, C_MAIL_FROM, C_QUIT, C_RCPT_TO, S_BYE_221, S_GREETING_220",
+    "No probes were executed; schedule online validation for authentication, directory traversal, and rename flows."
+  ],
+  "suggested_campaign": {
+    "target": "ftp-local",
+    "seed_strategy": "state_progression_then_file_ops",
+    "num_generated_seeds": 0,
+    "focus_commands": [],
+    "duration_minutes": 30,
+    "objective": "Increase post-auth and data-channel coverage while validating weaker transitions."
+  },
+  "fuzzing_observation": {
+    "likely_stall_point": "authentication_or_post_auth_gap",
+    "explanation": "Several observed message types are not yet represented in the state machine; prioritize seeds and probes for: C_DATA, C_EHLO, C_HELO, C_MAIL_FROM, C_QUIT, C_RCPT_TO, S_BYE_221, S_GREETING_220"
+  }
+}

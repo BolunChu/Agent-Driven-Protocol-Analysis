@@ -1,0 +1,158 @@
+{
+  "schema_version": 1,
+  "project_id": 31,
+  "protocol": "SMTP",
+  "messages": {
+    "C_DATA": {
+      "template": "DATA",
+      "fields": {},
+      "preconditions": [],
+      "postconditions": [],
+      "dangerous_inputs": [
+        "unexpected extra argument",
+        "repeated command",
+        "oversized token"
+      ],
+      "observed_count": 0,
+      "confidence": 1.0
+    },
+    "C_EHLO": {
+      "template": "EHLO <domain>",
+      "fields": {},
+      "preconditions": [],
+      "postconditions": [],
+      "dangerous_inputs": [
+        "unexpected extra argument",
+        "repeated command",
+        "oversized token"
+      ],
+      "observed_count": 0,
+      "confidence": 1.0
+    },
+    "C_HELO": {
+      "template": "HELO <domain>",
+      "fields": {},
+      "preconditions": [],
+      "postconditions": [],
+      "dangerous_inputs": [
+        "unexpected extra argument",
+        "repeated command",
+        "oversized token"
+      ],
+      "observed_count": 0,
+      "confidence": 1.0
+    },
+    "C_MAIL_FROM": {
+      "template": "MAIL FROM:<reverse-path>",
+      "fields": {},
+      "preconditions": [],
+      "postconditions": [],
+      "dangerous_inputs": [
+        "unexpected extra argument",
+        "repeated command",
+        "oversized token"
+      ],
+      "observed_count": 0,
+      "confidence": 1.0
+    },
+    "C_QUIT": {
+      "template": "QUIT",
+      "fields": {},
+      "preconditions": [],
+      "postconditions": [],
+      "dangerous_inputs": [
+        "unexpected extra argument",
+        "repeated command",
+        "oversized token"
+      ],
+      "observed_count": 0,
+      "confidence": 1.0
+    },
+    "C_RCPT_TO": {
+      "template": "RCPT TO:<forward-path>",
+      "fields": {},
+      "preconditions": [],
+      "postconditions": [],
+      "dangerous_inputs": [
+        "unexpected extra argument",
+        "repeated command",
+        "oversized token"
+      ],
+      "observed_count": 0,
+      "confidence": 1.0
+    },
+    "S_BYE_221": {
+      "template": "221 <text>",
+      "fields": {},
+      "preconditions": [],
+      "postconditions": [],
+      "dangerous_inputs": [
+        "unexpected extra argument",
+        "repeated command",
+        "oversized token"
+      ],
+      "observed_count": 0,
+      "confidence": 1.0
+    },
+    "S_GREETING_220": {
+      "template": "220 <hostname> ESMTP <service_info>",
+      "fields": {},
+      "preconditions": [],
+      "postconditions": [],
+      "dangerous_inputs": [
+        "unexpected extra argument",
+        "repeated command",
+        "oversized token"
+      ],
+      "observed_count": 0,
+      "confidence": 1.0
+    },
+    "S_OK_250": {
+      "template": "250 <text>",
+      "fields": {},
+      "preconditions": [],
+      "postconditions": [],
+      "dangerous_inputs": [
+        "unexpected extra argument",
+        "repeated command",
+        "oversized token"
+      ],
+      "observed_count": 0,
+      "confidence": 1.0
+    },
+    "S_START_INPUT_354": {
+      "template": "354 <text>",
+      "fields": {},
+      "preconditions": [],
+      "postconditions": [],
+      "dangerous_inputs": [
+        "unexpected extra argument",
+        "repeated command",
+        "oversized token"
+      ],
+      "observed_count": 0,
+      "confidence": 1.0
+    }
+  },
+  "states": [],
+  "transitions": [],
+  "ordering_rules": [
+    "The server must send a 220 greeting before any client command.",
+    "The client must identify itself with HELO or EHLO before initiating a MAIL FROM transaction.",
+    "MAIL FROM must precede RCPT TO.",
+    "RCPT TO must precede the DATA command.",
+    "The server must respond with 354 to a DATA command before the client sends the message content.",
+    "At least one valid RCPT TO command must be accepted before DATA is issued."
+  ],
+  "field_constraints": [
+    "EHLO/HELO.domain: Must be a valid domain name or IP literal.",
+    "MAIL FROM.reverse-path: Must be a valid reverse-path (email address), often enclosed in <>.",
+    "RCPT TO.forward-path: Must be a valid forward-path (email address), often enclosed in <>.",
+    "DATA_CONTENT.message_data: Must terminate with a line containing only a period (CRLF.CRLF)."
+  ],
+  "dangerous_input_families": [
+    "oversized token",
+    "repeated command",
+    "unexpected extra argument"
+  ]
+}

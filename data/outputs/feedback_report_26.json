@@ -1,0 +1,120 @@
+{
+  "project_id": 26,
+  "unused_message_types": [
+    "ACCT",
+    "APPE",
+    "CDUP",
+    "CWD",
+    "DELE",
+    "EPRT",
+    "EPSV",
+    "FEAT",
+    "HELP",
+    "MKD",
+    "MLSD",
+    "MLST",
+    "MODE",
+    "NLST",
+    "NOOP",
+    "PWD",
+    "RETR",
+    "RMD",
+    "SIZE",
+    "SMNT",
+    "STAT",
+    "STOR",
+    "STRU",
+    "SYST",
+    "TYPE",
+    "XCUP",
+    "XCWD",
+    "XMKD",
+    "XPWD",
+    "XRMD"
+  ],
+  "isolated_states": [
+    {
+      "state": "DATA_TRANSFER",
+      "incoming": 2,
+      "outgoing": 0
+    }
+  ],
+  "weak_transitions": [
+    {
+      "description": "AUTH_PENDING -> INIT via PASS",
+      "status": "hypothesis",
+      "confidence": 0.8
+    },
+    {
+      "description": "AUTHENTICATED -> DATA_TRANSFER via LIST",
+      "status": "hypothesis",
+      "confidence": 0.8
+    },
+    {
+      "description": "AUTHENTICATED -> RESETTING via REIN",
+      "status": "hypothesis",
+      "confidence": 0.8
+    },
+    {
+      "description": "RESETTING -> AUTH_PENDING via USER",
+      "status": "hypothesis",
+      "confidence": 0.8
+    },
+    {
+      "description": "INIT -> AUTH_PENDING via USER",
+      "status": "hypothesis",
+      "confidence": 0.9
+    },
+    {
+      "description": "AUTH_PENDING -> AUTHENTICATED via PASS",
+      "status": "hypothesis",
+      "confidence": 0.9
+    },
+    {
+      "description": "AUTHENTICATED -> DATA_CHANNEL_READY via PASV",
+      "status": "hypothesis",
+      "confidence": 0.9
+    },
+    {
+      "description": "AUTHENTICATED -> DATA_CHANNEL_READY via PORT",
+      "status": "hypothesis",
+      "confidence": 0.9
+    },
+    {
+      "description": "DATA_CHANNEL_READY -> DATA_TRANSFER via LIST",
+      "status": "hypothesis",
+      "confidence": 0.9
+    },
+    {
+      "description": "AUTHENTICATED -> RENAME_PENDING via RNFR",
+      "status": "hypothesis",
+      "confidence": 0.9
+    }
+  ],
+  "supported_ratio": 0.0,
+  "probe_to_transition_ratio": 0.231,
+  "generated_seed_count": 15,
+  "recommended_actions": [
+    "Several observed message types are not yet represented in the state machine; prioritize seeds and probes for: ACCT, APPE, CDUP, CWD, DELE, EPRT, EPSV, FEAT",
+    "Some inferred states are weakly connected in the current model; add directed seeds for: DATA_TRANSFER"
+  ],
+  "suggested_campaign": {
+    "target": "ftp-local",
+    "seed_strategy": "state_progression_then_file_ops",
+    "num_generated_seeds": 15,
+    "focus_commands": [
+      "RETR",
+      "STOR",
+      "EPSV",
+      "EPRT",
+      "MLSD",
+      "MLST"
+    ],
+    "duration_minutes": 30,
+    "objective": "Increase post-auth and data-channel coverage while validating weaker transitions."
+  },
+  "fuzzing_observation": {
+    "likely_stall_point": "authentication_or_post_auth_gap",
+    "explanation": "Several observed message types are not yet represented in the state machine; prioritize seeds and probes for: ACCT, APPE, CDUP, CWD, DELE, EPRT, EPSV, FEAT"
+  }
+}

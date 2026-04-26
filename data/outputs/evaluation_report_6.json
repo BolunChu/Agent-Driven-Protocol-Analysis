@@ -1,0 +1,558 @@
+{
+  "project_id": 6,
+  "run_timestamp": "2026-04-25T08:28:55.195645",
+  "data_import": {
+    "doc": 1,
+    "trace_ftp_sessions": 10,
+    "trace_profuzzbench": 39
+  },
+  "metrics": {
+    "message_types": 41,
+    "states": 6,
+    "transitions": 11,
+    "invariants": 10,
+    "evidence_records": 71,
+    "probe_runs": 3
+  },
+  "transition_status_distribution": {
+    "hypothesis": 0,
+    "supported": 11,
+    "disputed": 0
+  },
+  "invariant_status_distribution": {
+    "hypothesis": 0,
+    "supported": 10,
+    "disputed": 0
+  },
+  "llm_tool_calls": {
+    "spec_agent": 1,
+    "trace_agent": 1
+  },
+  "fallback_used": {
+    "spec_agent": false,
+    "trace_agent": false
+  },
+  "message_types_list": [
+    "USER",
+    "PASS",
+    "PWD",
+    "CWD",
+    "RETR",
+    "STOR",
+    "LIST",
+    "PASV",
+    "PORT",
+    "QUIT",
+    "TYPE",
+    "SYST",
+    "FEAT",
+    "NOOP",
+    "NLST",
+    "STAT",
+    "SIZE",
+    "RNFR",
+    "RNTO",
+    "DELE",
+    "MKD",
+    "RMD",
+    "CDUP",
+    "XMKD",
+    "XRMD",
+    "XPWD",
+    "XCWD",
+    "XCUP",
+    "MODE",
+    "STRU",
+    "APPE",
+    "HELP",
+    "REIN",
+    "ACCT",
+    "SMNT",
+    "EPSV",
+    "EPRT",
+    "MLSD",
+    "MLST",
+    "CAPI",
+    "PRUE"
+  ],
+  "states_list": [
+    {
+      "name": "INIT",
+      "description": "Initial connection established, awaiting authentication credentials.",
+      "confidence": 1.0
+    },
+    {
+      "name": "AUTH_PENDING",
+      "description": "User identity provided, awaiting password (PASS command).",
+      "confidence": 1.0
+    },
+    {
+      "name": "AUTHENTICATED",
+      "description": "User successfully authenticated, all non-privileged commands allowed.",
+      "confidence": 1.0
+    },
+    {
+      "name": "DATA_TRANSFER",
+      "description": "Actively transferring file or directory listing data.",
+      "confidence": 0.9
+    },
+    {
+      "name": "RENAME_PENDING",
+      "description": "A rename operation is partially complete, waiting for the destination name.",
+      "confidence": 0.9
+    },
+    {
+      "name": "CLOSED",
+      "description": "Session terminated.",
+      "confidence": 1.0
+    }
+  ],
+  "transitions_list": [
+    {
+      "from": "INIT",
+      "to": "AUTH_PENDING",
+      "via": "USER",
+      "confidence": 1.0,
+      "status": "supported"
+    },
+    {
+      "from": "AUTH_PENDING",
+      "to": "AUTHENTICATED",
+      "via": "PASS",
+      "confidence": 0.9,
+      "status": "supported"
+    },
+    {
+      "from": "AUTH_PENDING",
+      "to": "AUTH_PENDING",
+      "via": "PASS",
+      "confidence": 0.9500000000000001,
+      "status": "supported"
+    },
+    {
+      "from": "AUTHENTICATED",
+      "to": "DATA_TRANSFER",
+      "via": "LIST",
+      "confidence": 0.9,
+      "status": "supported"
+    },
+    {
+      "from": "AUTHENTICATED",
+      "to": "DATA_TRANSFER",
+      "via": "RETR",
+      "confidence": 0.9,
+      "status": "supported"
+    },
+    {
+      "from": "AUTHENTICATED",
+      "to": "DATA_TRANSFER",
+      "via": "STOR",
+      "confidence": 0.9,
+      "status": "supported"
+    },
+    {
+      "from": "AUTHENTICATED",
+      "to": "RENAME_PENDING",
+      "via": "RNFR",
+      "confidence": 0.9,
+      "status": "supported"
+    },
+    {
+      "from": "RENAME_PENDING",
+      "to": "AUTHENTICATED",
+      "via": "RNTO",
+      "confidence": 0.9,
+      "status": "supported"
+    },
+    {
+      "from": "AUTHENTICATED",
+      "to": "CLOSED",
+      "via": "QUIT",
+      "confidence": 0.9,
+      "status": "supported"
+    },
+    {
+      "from": "AUTHENTICATED",
+      "to": "INIT",
+      "via": "REIN",
+      "confidence": 0.9500000000000001,
+      "status": "supported"
+    },
+    {
+      "from": "INIT",
+      "to": "CLOSED",
+      "via": "QUIT",
+      "confidence": 0.9,
+      "status": "supported"
+    }
+  ],
+  "invariants_list": [
+    {
+      "rule": "The PASS command must be preceded by a USER command in the same session.",
+      "type": "ordering",
+      "confidence": 0.9,
+      "status": "supported"
+    },
+    {
+      "rule": "A successful USER/PASS sequence must occur before LIST, RETR, or STOR commands.",
+      "type": "state_requirement",
+      "confidence": 0.9,
+      "status": "supported"
+    },
+    {
+      "rule": "A PASV or PORT command should precede the initiation of data transfer commands like LIST, RETR, or STOR.",
+      "type": "ordering",
+      "confidence": 0.8,
+      "status": "supported"
+    },
+    {
+      "rule": "If a PASS command fails (e.g., 530), the client may send another USER command to retry authentication.",
+      "type": "conditional",
+      "confidence": 0.8,
+      "status": "supported"
+    },
+    {
+      "rule": "An RNTO command must be preceded by an RNFR command.",
+      "type": "ordering",
+      "confidence": 0.9,
+      "status": "supported"
+    },
+    {
+      "rule": "The QUIT command is valid at any point after the initial connection response.",
+      "type": "ordering",
+      "confidence": 0.9,
+      "status": "supported"
+    },
+    {
+      "rule": "PASS.PASS: The PASS command must follow the USER command.",
+      "type": "field_constraint",
+      "confidence": 0.9,
+      "status": "supported"
+    },
+    {
+      "rule": "PORT.address_info: The PORT command argument must be six comma-separated integers (h1,h2,h3,h4,p1,p2).",
+      "type": "field_constraint",
+      "confidence": 0.9,
+      "status": "supported"
+    },
+    {
+      "rule": "TYPE.type_code: The TYPE command parameter must be 'A' (ASCII) or 'I' (Image/Binary).",
+      "type": "field_constraint",
+      "confidence": 0.8,
+      "status": "supported"
+    },
+    {
+      "rule": "RNTO.filename: RNTO must immediately follow a successful RNFR command.",
+      "type": "field_constraint",
+      "confidence": 0.9,
+      "status": "supported"
+    }
+  ],
+  "pipeline_results": {
+    "spec": {
+      "agent": "spec",
+      "llm_tool_calls": 1,
+      "fallback_used": false,
+      "message_types_created": [
+        "USER",
+        "PASS",
+        "PWD",
+        "CWD",
+        "RETR",
+        "STOR",
+        "LIST",
+        "PASV",
+        "PORT",
+        "QUIT",
+        "TYPE",
+        "SYST",
+        "FEAT",
+        "NOOP",
+        "NLST",
+        "STAT",
+        "SIZE",
+        "RNFR",
+        "RNTO",
+        "DELE",
+        "MKD",
+        "RMD",
+        "CDUP",
+        "XMKD",
+        "XRMD",
+        "XPWD",
+        "XCWD",
+        "XCUP",
+        "MODE",
+        "STRU",
+        "APPE",
+        "HELP",
+        "REIN",
+        "ACCT",
+        "SMNT",
+        "EPSV",
+        "EPRT",
+        "MLSD",
+        "MLST",
+        "CAPI",
+        "PRUE"
+      ],
+      "invariants_created": [
+        "The PASS command must be preceded by a USER command in the same session.",
+        "A successful USER/PASS sequence must occur before LIST, RETR, or STOR commands.",
+        "A PASV or PORT command should precede the initiation of data transfer commands like LIST, RETR, or STOR.",
+        "If a PASS command fails (e.g., 530), the client may send another USER command to retry authentication.",
+        "An RNTO command must be preceded by an RNFR command.",
+        "The QUIT command is valid at any point after the initial connection response.",
+        "PASS.PASS: The PASS command must follow the USER command.",
+        "PORT.address_info: The PORT command argument must be six comma-separated integers (h1,h2,h3,h4,p1,p2).",
+        "TYPE.type_code: The TYPE command parameter must be 'A' (ASCII) or 'I' (Image/Binary).",
+        "RNTO.filename: RNTO must immediately follow a successful RNFR command."
+      ],
+      "docs_processed": 1,
+      "traces_summarized": 49
+    },
+    "trace": {
+      "agent": "trace",
+      "events_parsed": 421,
+      "sessions_processed": 49,
+      "llm_tool_calls": 1,
+      "fallback_used": false,
+      "message_types_updated": [],
+      "states_created": [
+        "INIT",
+        "AUTH_PENDING",
+        "AUTHENTICATED",
+        "DATA_TRANSFER",
+        "RENAME_PENDING",
+        "CLOSED"
+      ],
+      "transitions_created": [
+        "INIT → AUTH_PENDING via USER",
+        "AUTH_PENDING → AUTHENTICATED via PASS",
+        "AUTH_PENDING → AUTH_PENDING via PASS",
+        "AUTHENTICATED → DATA_TRANSFER via LIST",
+        "AUTHENTICATED → DATA_TRANSFER via RETR",
+        "AUTHENTICATED → DATA_TRANSFER via STOR",
+        "AUTHENTICATED → RENAME_PENDING via RNFR",
+        "RENAME_PENDING → AUTHENTICATED via RNTO",
+        "AUTHENTICATED → CLOSED via QUIT",
+        "AUTHENTICATED → INIT via REIN",
+        "INIT → CLOSED via QUIT"
+      ]
+    },
+    "verifier": {
+      "agent": "verifier",
+      "transitions_verified": 11,
+      "invariants_verified": 10,
+      "status_changes": [
+        {
+          "type": "transition",
+          "description": "INIT -> AUTH_PENDING via USER",
+          "old_status": "hypothesis",
+          "new_status": "supported",
+          "confidence": 0.9,
+          "evidence_count": 1,
+          "rationale": "The USER command with 331 response directly confirms the transition to a state awaiting authentication."
+        },
+        {
+          "type": "transition",
+          "description": "AUTH_PENDING -> AUTHENTICATED via PASS",
+          "old_status": "hypothesis",
+          "new_status": "supported",
+          "confidence": 0.9,
+          "evidence_count": 1,
+          "rationale": "Response code 230 confirms the completion of authentication and transition to a logged-in state."
+        },
+        {
+          "type": "transition",
+          "description": "AUTH_PENDING -> AUTH_PENDING via PASS",
+          "old_status": "hypothesis",
+          "new_status": "supported",
+          "confidence": 0.8,
+          "evidence_count": 1,
+          "rationale": "Response code 530 indicates a failure that maintains the session in an unauthenticated but initialized state."
+        },
+        {
+          "type": "transition",
+          "description": "AUTHENTICATED -> DATA_TRANSFER via LIST",
+          "old_status": "hypothesis",
+          "new_status": "supported",
+          "confidence": 0.9,
+          "evidence_count": 1,
+          "rationale": "Response code 150 indicates the start of a data transfer for directory listing."
+        },
+        {
+          "type": "transition",
+          "description": "AUTHENTICATED -> DATA_TRANSFER via RETR",
+          "old_status": "hypothesis",
+          "new_status": "supported",
+          "confidence": 0.9,
+          "evidence_count": 1,
+          "rationale": "Response code 150 indicates the start of a data transfer for file retrieval."
+        },
+        {
+          "type": "transition",
+          "description": "AUTHENTICATED -> DATA_TRANSFER via STOR",
+          "old_status": "hypothesis",
+          "new_status": "supported",
+          "confidence": 0.9,
+          "evidence_count": 1,
+          "rationale": "Response code 150 indicates the start of a data transfer for file storage."
+        },
+        {
+          "type": "transition",
+          "description": "AUTHENTICATED -> RENAME_PENDING via RNFR",
+          "old_status": "hypothesis",
+          "new_status": "supported",
+          "confidence": 0.9,
+          "evidence_count": 1,
+          "rationale": "Response code 350 explicitly transitions the session into a state waiting for the rename destination."
+        },
+        {
+          "type": "transition",
+          "description": "RENAME_PENDING -> AUTHENTICATED via RNTO",
+          "old_status": "hypothesis",
+          "new_status": "supported",
+          "confidence": 0.9,
+          "evidence_count": 1,
+          "rationale": "Response code 250 indicates the completion of the rename and return to the primary authenticated state."
+        },
+        {
+          "type": "transition",
+          "description": "AUTHENTICATED -> CLOSED via QUIT",
+          "old_status": "hypothesis",
+          "new_status": "supported",
+          "confidence": 0.9,
+          "evidence_count": 1,
+          "rationale": "Response code 221 confirms the closure of the session."
+        },
+        {
+          "type": "transition",
+          "description": "AUTHENTICATED -> INIT via REIN",
+          "old_status": "hypothesis",
+          "new_status": "supported",
+          "confidence": 0.8,
+          "evidence_count": 1,
+          "rationale": "The REIN command resets the session to a fresh state (220), effectively returning to INIT."
+        },
+        {
+          "type": "transition",
+          "description": "INIT -> CLOSED via QUIT",
+          "old_status": "hypothesis",
+          "new_status": "supported",
+          "confidence": 0.9,
+          "evidence_count": 1,
+          "rationale": "Response code 221 confirms that sessions can be closed before authentication."
+        },
+        {
+          "type": "invariant",
+          "description": "The PASS command must be preceded by a USER command in the same session.",
+          "old_status": "hypothesis",
+          "new_status": "supported",
+          "confidence": 0.9,
+          "evidence_count": 1,
+          "rationale": "Standard FTP requirement documented in the spec agent output and reinforced by the 331 response code requirement for password."
+        },
+        {
+          "type": "invariant",
+          "description": "A successful USER/PASS sequence must occur before LIST, RETR, or STOR commands.",
+          "old_status": "hypothesis",
+          "new_status": "supported",
+          "confidence": 0.9,
+          "evidence_count": 1,
+          "rationale": "Standard FTP state-machine behavior where data commands require an authenticated state."
+        },
+        {
+          "type": "invariant",
+          "description": "A PASV or PORT command should precede the initiation of data transfer commands like LIST, RETR, or STOR.",
+          "old_status": "hypothesis",
+          "new_status": "supported",
+          "confidence": 0.8,
+          "evidence_count": 1,
+          "rationale": "Protocol requirement to establish the data channel parameters before data command execution."
+        },
+        {
+          "type": "invariant",
+          "description": "If a PASS command fails (e.g., 530), the client may send another USER command to retry authentication.",
+          "old_status": "hypothesis",
+          "new_status": "supported",
+          "confidence": 0.8,
+          "evidence_count": 1,
+          "rationale": "Standard error handling and retry logic in FTP sessions."
+        },
+        {
+          "type": "invariant",
+          "description": "An RNTO command must be preceded by an RNFR command.",
+          "old_status": "hypothesis",
+          "new_status": "supported",
+          "confidence": 0.9,
+          "evidence_count": 1,
+          "rationale": "Standard two-step file renaming sequence in FTP as evidenced by the 350 response code."
+        },
+        {
+          "type": "invariant",
+          "description": "The QUIT command is valid at any point after the initial connection response.",
+          "old_status": "hypothesis",
+          "new_status": "supported",
+          "confidence": 0.9,
+          "evidence_count": 1,
+          "rationale": "The QUIT command is designed to terminate the session from any state."
+        },
+        {
+          "type": "invariant",
+          "description": "PASS.PASS: The PASS command must follow the USER command.",
+          "old_status": "hypothesis",
+          "new_status": "supported",
+          "confidence": 0.9,
+          "evidence_count": 1,
+          "rationale": "Duplicate of the previous invariant but correctly identifies the field-level requirement."
+        },
+        {
+          "type": "invariant",
+          "description": "PORT.address_info: The PORT command argument must be six comma-separated integers (h1,h2,h3,h4,p1,p2).",
+          "old_status": "hypothesis",
+          "new_status": "supported",
+          "confidence": 0.9,
+          "evidence_count": 1,
+          "rationale": "Standard syntax for the FTP PORT command parameters."
+        },
+        {
+          "type": "invariant",
+          "description": "TYPE.type_code: The TYPE command parameter must be 'A' (ASCII) or 'I' (Image/Binary).",
+          "old_status": "hypothesis",
+          "new_status": "supported",
+          "confidence": 0.8,
+          "evidence_count": 1,
+          "rationale": "Most common types in FTP; while others exist, these are the primary functional ones."
+        },
+        {
+          "type": "invariant",
+          "description": "RNTO.filename: RNTO must immediately follow a successful RNFR command.",
+          "old_status": "hypothesis",
+          "new_status": "supported",
+          "confidence": 0.9,
+          "evidence_count": 1,
+          "rationale": "Strict sequencing requirement for renaming operations in FTP."
+        }
+      ]
+    },
+    "probe": {
+      "agent": "probe",
+      "probes_executed": 3,
+      "model_updates": [
+        {
+          "target": "AUTH_PENDING -> AUTH_PENDING via PASS",
+          "action": "confirmed"
+        },
+        {
+          "target": "AUTHENTICATED -> INIT via REIN",
+          "action": "confirmed"
+        },
+        {
+          "target": "INIT -> AUTH_PENDING via USER",
+          "action": "confirmed"
+        }
+      ]
+    }
+  }
+}

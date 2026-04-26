@@ -1,0 +1,1137 @@
+{
+  "schema_version": 1,
+  "project_id": 30,
+  "protocol": "FTP",
+  "messages": {
+    "ACCT": {
+      "template": "ACCT <account>\\r\\n",
+      "fields": {
+        "account": {
+          "type": "string",
+          "examples": [],
+          "boundary_cases": [
+            "",
+            "anonymous",
+            "admin",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+          ]
+        }
+      },
+      "preconditions": [],
+      "postconditions": [],
+      "dangerous_inputs": [
+        "empty credential",
+        "overlong credential",
+        "credential retry loop"
+      ],
+      "observed_count": 3,
+      "confidence": 0.59
+    },
+    "APPE": {
+      "template": "APPE <filename>\\r\\n",
+      "fields": {
+        "filename": {
+          "type": "path",
+          "examples": [
+            "teste.txt"
+          ],
+          "boundary_cases": [
+            "/",
+            "../",
+            "/tmp/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            "./nested/dir"
+          ]
+        }
+      },
+      "preconditions": [],
+      "postconditions": [],
+      "dangerous_inputs": [
+        "long path",
+        "parent traversal",
+        "nested directory chain"
+      ],
+      "observed_count": 3,
+      "confidence": 0.59
+    },
+    "CDUP": {
+      "template": "CDUP\\r\\n",
+      "fields": {},
+      "preconditions": [],
+      "postconditions": [],
+      "dangerous_inputs": [
+        "unexpected extra argument",
+        "repeated command",
+        "oversized token"
+      ],
+      "observed_count": 3,
+      "confidence": 0.59
+    },
+    "CWD": {
+      "template": "CWD <directory>\\r\\n",
+      "fields": {
+        "directory": {
+          "type": "path",
+          "examples": [
+            "/var/data",
+            "/tmp",
+            "/pub",
+            "/pub/docs",
+            "/archive"
+          ],
+          "boundary_cases": [
+            "/",
+            "../",
+            "/tmp/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            "./nested/dir"
+          ]
+        }
+      },
+      "preconditions": [],
+      "postconditions": [],
+      "dangerous_inputs": [
+        "long path",
+        "parent traversal",
+        "nested directory chain"
+      ],
+      "observed_count": 8,
+      "confidence": 0.79
+    },
+    "DELE": {
+      "template": "DELE <filename>\\r\\n",
+      "fields": {
+        "filename": {
+          "type": "path",
+          "examples": [
+            "upload.txt",
+            "test.txt"
+          ],
+          "boundary_cases": [
+            "/",
+            "../",
+            "/tmp/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            "./nested/dir"
+          ]
+        }
+      },
+      "preconditions": [],
+      "postconditions": [],
+      "dangerous_inputs": [
+        "long path",
+        "parent traversal",
+        "nested directory chain"
+      ],
+      "observed_count": 4,
+      "confidence": 0.62
+    },
+    "EPRT": {
+      "template": "EPRT <raw_args>\\r\\n",
+      "fields": {
+        "raw_args": {
+          "type": "string",
+          "examples": [
+            ",2,0:0:0:0:0:0:0:0,1025,"
+          ],
+          "boundary_cases": [
+            "",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            "%s%s%s",
+            "../"
+          ]
+        }
+      },
+      "preconditions": [
+        "AUTHENTICATED"
+      ],
+      "postconditions": [
+        "DATA_CHANNEL_READY"
+      ],
+      "dangerous_inputs": [
+        "invalid data endpoint",
+        "unreachable port",
+        "mismatched address family"
+      ],
+      "observed_count": 3,
+      "confidence": 0.59
+    },
+    "EPSV": {
+      "template": "EPSV\\r\\n",
+      "fields": {},
+      "preconditions": [
+        "AUTHENTICATED"
+      ],
+      "postconditions": [
+        "DATA_CHANNEL_READY"
+      ],
+      "dangerous_inputs": [
+        "invalid data endpoint",
+        "unreachable port",
+        "mismatched address family"
+      ],
+      "observed_count": 3,
+      "confidence": 0.59
+    },
+    "FEAT": {
+      "template": "FEAT\\r\\n",
+      "fields": {},
+      "preconditions": [],
+      "postconditions": [],
+      "dangerous_inputs": [
+        "unexpected extra argument",
+        "repeated command",
+        "oversized token"
+      ],
+      "observed_count": 4,
+      "confidence": 0.62
+    },
+    "HELP": {
+      "template": "HELP\\r\\n",
+      "fields": {},
+      "preconditions": [],
+      "postconditions": [],
+      "dangerous_inputs": [
+        "unexpected optional argument",
+        "empty optional argument"
+      ],
+      "observed_count": 3,
+      "confidence": 0.59
+    },
+    "LIST": {
+      "template": "LIST\\r\\n",
+      "fields": {},
+      "preconditions": [
+        "AUTHENTICATED",
+        "DATA_CHANNEL_READY"
+      ],
+      "postconditions": [
+        "DATA_TRANSFER"
+      ],
+      "dangerous_inputs": [
+        "unexpected extra argument",
+        "repeated command",
+        "oversized token"
+      ],
+      "observed_count": 32,
+      "confidence": 0.95
+    },
+    "MKD": {
+      "template": "MKD <directory>\\r\\n",
+      "fields": {
+        "directory": {
+          "type": "path",
+          "examples": [
+            "test",
+            "todeletenow"
+          ],
+          "boundary_cases": [
+            "/",
+            "../",
+            "/tmp/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            "./nested/dir"
+          ]
+        }
+      },
+      "preconditions": [],
+      "postconditions": [],
+      "dangerous_inputs": [
+        "long path",
+        "parent traversal",
+        "nested directory chain"
+      ],
+      "observed_count": 6,
+      "confidence": 0.68
+    },
+    "MLSD": {
+      "template": "MLSD <path>\\r\\n",
+      "fields": {
+        "path": {
+          "type": "path",
+          "examples": [
+            "/"
+          ],
+          "boundary_cases": [
+            "/",
+            "../",
+            "/tmp/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            "./nested/dir"
+          ]
+        }
+      },
+      "preconditions": [
+        "AUTHENTICATED",
+        "DATA_CHANNEL_READY"
+      ],
+      "postconditions": [
+        "DATA_TRANSFER"
+      ],
+      "dangerous_inputs": [
+        "long path",
+        "parent traversal",
+        "nested directory chain"
+      ],
+      "observed_count": 3,
+      "confidence": 0.59
+    },
+    "MLST": {
+      "template": "MLST <path>\\r\\n",
+      "fields": {
+        "path": {
+          "type": "path",
+          "examples": [
+            "/"
+          ],
+          "boundary_cases": [
+            "/",
+            "../",
+            "/tmp/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            "./nested/dir"
+          ]
+        }
+      },
+      "preconditions": [],
+      "postconditions": [],
+      "dangerous_inputs": [
+        "long path",
+        "parent traversal",
+        "nested directory chain"
+      ],
+      "observed_count": 3,
+      "confidence": 0.59
+    },
+    "MODE": {
+      "template": "MODE <transfer_mode>\\r\\n",
+      "fields": {
+        "transfer_mode": {
+          "type": "enum",
+          "examples": [
+            "S",
+            "B",
+            "C"
+          ],
+          "boundary_cases": [
+            "",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            "%s%s%s",
+            "../"
+          ]
+        }
+      },
+      "preconditions": [],
+      "postconditions": [],
+      "dangerous_inputs": [
+        "invalid enum token",
+        "lowercase enum",
+        "missing parameter"
+      ],
+      "observed_count": 9,
+      "confidence": 0.77
+    },
+    "NLST": {
+      "template": "NLST\\r\\n",
+      "fields": {},
+      "preconditions": [
+        "DATA_CHANNEL_READY"
+      ],
+      "postconditions": [
+        "DATA_TRANSFER"
+      ],
+      "dangerous_inputs": [
+        "unexpected extra argument",
+        "repeated command",
+        "oversized token"
+      ],
+      "observed_count": 4,
+      "confidence": 0.62
+    },
+    "NOOP": {
+      "template": "NOOP\\r\\n",
+      "fields": {},
+      "preconditions": [],
+      "postconditions": [],
+      "dangerous_inputs": [
+        "unexpected extra argument",
+        "repeated command",
+        "oversized token"
+      ],
+      "observed_count": 4,
+      "confidence": 0.62
+    },
+    "PASS": {
+      "template": "PASS <password>\\r\\n",
+      "fields": {
+        "password": {
+          "type": "string",
+          "examples": [
+            "anonymous@example.com",
+            "wrongpassword",
+            "admin123",
+            "test1234",
+            "ftppass"
+          ],
+          "boundary_cases": [
+            "",
+            "anonymous@test.com",
+            "wrongpass",
+            "PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP"
+          ]
+        }
+      },
+      "preconditions": [
+        "AUTH_PENDING"
+      ],
+      "postconditions": [
+        "AUTHENTICATED",
+        "AUTH_PENDING"
+      ],
+      "dangerous_inputs": [
+        "empty credential",
+        "overlong credential",
+        "credential retry loop"
+      ],
+      "observed_count": 50,
+      "confidence": 0.95
+    },
+    "PASV": {
+      "template": "PASV\\r\\n",
+      "fields": {},
+      "preconditions": [
+        "AUTHENTICATED"
+      ],
+      "postconditions": [
+        "DATA_CHANNEL_READY"
+      ],
+      "dangerous_inputs": [
+        "invalid data endpoint",
+        "unreachable port",
+        "mismatched address family"
+      ],
+      "observed_count": 4,
+      "confidence": 0.62
+    },
+    "PORT": {
+      "template": "PORT <host> <port>\\r\\n",
+      "fields": {
+        "host": {
+          "type": "host",
+          "examples": [
+            "127.0.0.1"
+          ],
+          "boundary_cases": [
+            "127.0.0.1",
+            "0.0.0.0",
+            "256.256.256.256"
+          ]
+        },
+        "port": {
+          "type": "integer",
+          "examples": [
+            "3762"
+          ],
+          "boundary_cases": [
+            "0",
+            "1",
+            "65535",
+            "70000"
+          ]
+        }
+      },
+      "preconditions": [
+        "AUTHENTICATED"
+      ],
+      "postconditions": [
+        "DATA_CHANNEL_READY"
+      ],
+      "dangerous_inputs": [
+        "invalid data endpoint",
+        "unreachable port",
+        "mismatched address family"
+      ],
+      "observed_count": 3,
+      "confidence": 0.59
+    },
+    "PWD": {
+      "template": "PWD\\r\\n",
+      "fields": {},
+      "preconditions": [],
+      "postconditions": [],
+      "dangerous_inputs": [
+        "unexpected extra argument",
+        "repeated command",
+        "oversized token"
+      ],
+      "observed_count": 11,
+      "confidence": 0.9
+    },
+    "QUIT": {
+      "template": "QUIT\\r\\n",
+      "fields": {},
+      "preconditions": [
+        "AUTHENTICATED",
+        "INIT"
+      ],
+      "postconditions": [
+        "CLOSED"
+      ],
+      "dangerous_inputs": [
+        "unexpected extra argument",
+        "repeated command",
+        "oversized token"
+      ],
+      "observed_count": 46,
+      "confidence": 0.95
+    },
+    "REIN": {
+      "template": "REIN\\r\\n",
+      "fields": {},
+      "preconditions": [
+        "AUTHENTICATED"
+      ],
+      "postconditions": [
+        "RESETTING"
+      ],
+      "dangerous_inputs": [
+        "unexpected extra argument",
+        "repeated command",
+        "oversized token"
+      ],
+      "observed_count": 3,
+      "confidence": 0.64
+    },
+    "RETR": {
+      "template": "RETR <filename>\\r\\n",
+      "fields": {
+        "filename": {
+          "type": "path",
+          "examples": [
+            "report.txt",
+            "data.bin",
+            "old_report.pdf",
+            "backup.tar.gz",
+            "test.txt"
+          ],
+          "boundary_cases": [
+            "/",
+            "../",
+            "/tmp/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            "./nested/dir"
+          ]
+        }
+      },
+      "preconditions": [
+        "AUTHENTICATED",
+        "DATA_CHANNEL_READY"
+      ],
+      "postconditions": [
+        "DATA_TRANSFER"
+      ],
+      "dangerous_inputs": [
+        "long path",
+        "parent traversal",
+        "nested directory chain"
+      ],
+      "observed_count": 10,
+      "confidence": 0.95
+    },
+    "RMD": {
+      "template": "RMD <directory>\\r\\n",
+      "fields": {
+        "directory": {
+          "type": "path",
+          "examples": [
+            "todeletenow"
+          ],
+          "boundary_cases": [
+            "/",
+            "../",
+            "/tmp/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            "./nested/dir"
+          ]
+        }
+      },
+      "preconditions": [],
+      "postconditions": [],
+      "dangerous_inputs": [
+        "long path",
+        "parent traversal",
+        "nested directory chain"
+      ],
+      "observed_count": 3,
+      "confidence": 0.59
+    },
+    "RNFR": {
+      "template": "RNFR <filename>\\r\\n",
+      "fields": {
+        "filename": {
+          "type": "path",
+          "examples": [
+            "test.txt",
+            "test2.txt"
+          ],
+          "boundary_cases": [
+            "/",
+            "../",
+            "/tmp/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            "./nested/dir"
+          ]
+        }
+      },
+      "preconditions": [
+        "AUTHENTICATED"
+      ],
+      "postconditions": [
+        "RENAME_PENDING"
+      ],
+      "dangerous_inputs": [
+        "long path",
+        "parent traversal",
+        "nested directory chain"
+      ],
+      "observed_count": 9,
+      "confidence": 0.9
+    },
+    "RNTO": {
+      "template": "RNTO <filename>\\r\\n",
+      "fields": {
+        "filename": {
+          "type": "path",
+          "examples": [
+            "test2.txt",
+            "test.txt"
+          ],
+          "boundary_cases": [
+            "/",
+            "../",
+            "/tmp/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            "./nested/dir"
+          ]
+        }
+      },
+      "preconditions": [
+        "RENAME_PENDING"
+      ],
+      "postconditions": [
+        "AUTHENTICATED"
+      ],
+      "dangerous_inputs": [
+        "long path",
+        "parent traversal",
+        "nested directory chain"
+      ],
+      "observed_count": 9,
+      "confidence": 0.9
+    },
+    "SIZE": {
+      "template": "SIZE <filename>\\r\\n",
+      "fields": {
+        "filename": {
+          "type": "path",
+          "examples": [
+            "test.txt"
+          ],
+          "boundary_cases": [
+            "/",
+            "../",
+            "/tmp/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            "./nested/dir"
+          ]
+        }
+      },
+      "preconditions": [],
+      "postconditions": [],
+      "dangerous_inputs": [
+        "long path",
+        "parent traversal",
+        "nested directory chain"
+      ],
+      "observed_count": 18,
+      "confidence": 0.9
+    },
+    "SMNT": {
+      "template": "SMNT\\r\\n",
+      "fields": {},
+      "preconditions": [],
+      "postconditions": [],
+      "dangerous_inputs": [
+        "unexpected optional argument",
+        "empty optional argument"
+      ],
+      "observed_count": 3,
+      "confidence": 0.59
+    },
+    "STAT": {
+      "template": "STAT\\r\\n",
+      "fields": {},
+      "preconditions": [],
+      "postconditions": [],
+      "dangerous_inputs": [
+        "unexpected optional argument",
+        "empty optional argument"
+      ],
+      "observed_count": 24,
+      "confidence": 0.95
+    },
+    "STOR": {
+      "template": "STOR <filename>\\r\\n",
+      "fields": {
+        "filename": {
+          "type": "path",
+          "examples": [
+            "upload.txt",
+            "notes.txt",
+            "log.csv",
+            "test.txt"
+          ],
+          "boundary_cases": [
+            "/",
+            "../",
+            "/tmp/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            "./nested/dir"
+          ]
+        }
+      },
+      "preconditions": [],
+      "postconditions": [],
+      "dangerous_inputs": [
+        "long path",
+        "parent traversal",
+        "nested directory chain"
+      ],
+      "observed_count": 6,
+      "confidence": 0.68
+    },
+    "STRU": {
+      "template": "STRU <file_structure>\\r\\n",
+      "fields": {
+        "file_structure": {
+          "type": "enum",
+          "examples": [],
+          "boundary_cases": [
+            "",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            "%s%s%s",
+            "../"
+          ]
+        }
+      },
+      "preconditions": [],
+      "postconditions": [],
+      "dangerous_inputs": [
+        "invalid enum token",
+        "lowercase enum",
+        "missing parameter"
+      ],
+      "observed_count": 3,
+      "confidence": 0.59
+    },
+    "SYST": {
+      "template": "SYST\\r\\n",
+      "fields": {},
+      "preconditions": [],
+      "postconditions": [],
+      "dangerous_inputs": [
+        "unexpected extra argument",
+        "repeated command",
+        "oversized token"
+      ],
+      "observed_count": 7,
+      "confidence": 0.71
+    },
+    "TYPE": {
+      "template": "TYPE <transfer_type>\\r\\n",
+      "fields": {
+        "transfer_type": {
+          "type": "enum",
+          "examples": [
+            "I",
+            "A",
+            "E",
+            "L 7"
+          ],
+          "boundary_cases": [
+            "",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            "%s%s%s",
+            "../"
+          ]
+        }
+      },
+      "preconditions": [],
+      "postconditions": [],
+      "dangerous_inputs": [
+        "invalid enum token",
+        "lowercase enum",
+        "missing parameter"
+      ],
+      "observed_count": 14,
+      "confidence": 0.9
+    },
+    "USER": {
+      "template": "USER <username>\\r\\n",
+      "fields": {
+        "username": {
+          "type": "string",
+          "examples": [
+            "anonymous",
+            "admin",
+            "testuser",
+            "ftpuser",
+            "guest"
+          ],
+          "boundary_cases": [
+            "",
+            "anonymous",
+            "admin",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+          ]
+        }
+      },
+      "preconditions": [
+        "INIT",
+        "RESETTING"
+      ],
+      "postconditions": [
+        "AUTH_PENDING"
+      ],
+      "dangerous_inputs": [
+        "empty credential",
+        "overlong credential",
+        "credential retry loop"
+      ],
+      "observed_count": 49,
+      "confidence": 0.95
+    },
+    "XCUP": {
+      "template": "XCUP\\r\\n",
+      "fields": {},
+      "preconditions": [],
+      "postconditions": [],
+      "dangerous_inputs": [
+        "unexpected extra argument",
+        "repeated command",
+        "oversized token"
+      ],
+      "observed_count": 3,
+      "confidence": 0.59
+    },
+    "XCWD": {
+      "template": "XCWD <directory>\\r\\n",
+      "fields": {
+        "directory": {
+          "type": "path",
+          "examples": [
+            "test"
+          ],
+          "boundary_cases": [
+            "/",
+            "../",
+            "/tmp/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            "./nested/dir"
+          ]
+        }
+      },
+      "preconditions": [],
+      "postconditions": [],
+      "dangerous_inputs": [
+        "long path",
+        "parent traversal",
+        "nested directory chain"
+      ],
+      "observed_count": 3,
+      "confidence": 0.59
+    },
+    "XMKD": {
+      "template": "XMKD <directory>\\r\\n",
+      "fields": {
+        "directory": {
+          "type": "path",
+          "examples": [
+            "test",
+            "todeletetoo"
+          ],
+          "boundary_cases": [
+            "/",
+            "../",
+            "/tmp/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            "./nested/dir"
+          ]
+        }
+      },
+      "preconditions": [],
+      "postconditions": [],
+      "dangerous_inputs": [
+        "long path",
+        "parent traversal",
+        "nested directory chain"
+      ],
+      "observed_count": 6,
+      "confidence": 0.68
+    },
+    "XPWD": {
+      "template": "XPWD\\r\\n",
+      "fields": {},
+      "preconditions": [],
+      "postconditions": [],
+      "dangerous_inputs": [
+        "unexpected extra argument",
+        "repeated command",
+        "oversized token"
+      ],
+      "observed_count": 3,
+      "confidence": 0.59
+    },
+    "XRMD": {
+      "template": "XRMD <directory>\\r\\n",
+      "fields": {
+        "directory": {
+          "type": "path",
+          "examples": [
+            "todeletetoo"
+          ],
+          "boundary_cases": [
+            "/",
+            "../",
+            "/tmp/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            "./nested/dir"
+          ]
+        }
+      },
+      "preconditions": [],
+      "postconditions": [],
+      "dangerous_inputs": [
+        "long path",
+        "parent traversal",
+        "nested directory chain"
+      ],
+      "observed_count": 3,
+      "confidence": 0.59
+    }
+  },
+  "states": [
+    {
+      "name": "AUTHENTICATED",
+      "description": "",
+      "confidence": 1.0
+    },
+    {
+      "name": "AUTH_PENDING",
+      "description": "",
+      "confidence": 1.0
+    },
+    {
+      "name": "CLOSED",
+      "description": "",
+      "confidence": 1.0
+    },
+    {
+      "name": "DATA_CHANNEL_READY",
+      "description": "",
+      "confidence": 0.9
+    },
+    {
+      "name": "DATA_TRANSFER",
+      "description": "",
+      "confidence": 0.95
+    },
+    {
+      "name": "INIT",
+      "description": "",
+      "confidence": 1.0
+    },
+    {
+      "name": "RENAME_PENDING",
+      "description": "",
+      "confidence": 0.85
+    },
+    {
+      "name": "RESETTING",
+      "description": "",
+      "confidence": 0.8
+    }
+  ],
+  "transitions": [
+    {
+      "from_state": "INIT",
+      "to_state": "AUTH_PENDING",
+      "message_type": "USER",
+      "status": "hypothesis",
+      "confidence": 0.8
+    },
+    {
+      "from_state": "AUTH_PENDING",
+      "to_state": "AUTHENTICATED",
+      "message_type": "PASS",
+      "status": "hypothesis",
+      "confidence": 0.8
+    },
+    {
+      "from_state": "AUTH_PENDING",
+      "to_state": "AUTH_PENDING",
+      "message_type": "PASS",
+      "status": "hypothesis",
+      "confidence": 0.8
+    },
+    {
+      "from_state": "AUTHENTICATED",
+      "to_state": "DATA_CHANNEL_READY",
+      "message_type": "PASV",
+      "status": "hypothesis",
+      "confidence": 0.8
+    },
+    {
+      "from_state": "AUTHENTICATED",
+      "to_state": "DATA_CHANNEL_READY",
+      "message_type": "PORT",
+      "status": "hypothesis",
+      "confidence": 0.8
+    },
+    {
+      "from_state": "DATA_CHANNEL_READY",
+      "to_state": "DATA_TRANSFER",
+      "message_type": "LIST",
+      "status": "hypothesis",
+      "confidence": 0.8
+    },
+    {
+      "from_state": "AUTHENTICATED",
+      "to_state": "DATA_TRANSFER",
+      "message_type": "LIST",
+      "status": "hypothesis",
+      "confidence": 0.8
+    },
+    {
+      "from_state": "DATA_CHANNEL_READY",
+      "to_state": "DATA_TRANSFER",
+      "message_type": "RETR",
+      "status": "hypothesis",
+      "confidence": 0.8
+    },
+    {
+      "from_state": "AUTHENTICATED",
+      "to_state": "DATA_TRANSFER",
+      "message_type": "RETR",
+      "status": "hypothesis",
+      "confidence": 0.8
+    },
+    {
+      "from_state": "AUTHENTICATED",
+      "to_state": "RENAME_PENDING",
+      "message_type": "RNFR",
+      "status": "hypothesis",
+      "confidence": 0.8
+    },
+    {
+      "from_state": "RENAME_PENDING",
+      "to_state": "AUTHENTICATED",
+      "message_type": "RNTO",
+      "status": "hypothesis",
+      "confidence": 0.8
+    },
+    {
+      "from_state": "AUTHENTICATED",
+      "to_state": "RESETTING",
+      "message_type": "REIN",
+      "status": "hypothesis",
+      "confidence": 0.8
+    },
+    {
+      "from_state": "RESETTING",
+      "to_state": "AUTH_PENDING",
+      "message_type": "USER",
+      "status": "hypothesis",
+      "confidence": 0.8
+    },
+    {
+      "from_state": "AUTHENTICATED",
+      "to_state": "CLOSED",
+      "message_type": "QUIT",
+      "status": "hypothesis",
+      "confidence": 0.8
+    },
+    {
+      "from_state": "INIT",
+      "to_state": "CLOSED",
+      "message_type": "QUIT",
+      "status": "hypothesis",
+      "confidence": 0.8
+    },
+    {
+      "from_state": "AUTHENTICATED",
+      "to_state": "DATA_CHANNEL_READY",
+      "message_type": "EPSV",
+      "status": "hypothesis",
+      "confidence": 0.8
+    },
+    {
+      "from_state": "AUTHENTICATED",
+      "to_state": "DATA_CHANNEL_READY",
+      "message_type": "EPRT",
+      "status": "hypothesis",
+      "confidence": 0.8
+    },
+    {
+      "from_state": "DATA_CHANNEL_READY",
+      "to_state": "DATA_TRANSFER",
+      "message_type": "NLST",
+      "status": "hypothesis",
+      "confidence": 0.8
+    },
+    {
+      "from_state": "AUTHENTICATED",
+      "to_state": "DATA_TRANSFER",
+      "message_type": "MLSD",
+      "status": "hypothesis",
+      "confidence": 0.8
+    },
+    {
+      "from_state": "DATA_CHANNEL_READY",
+      "to_state": "DATA_TRANSFER",
+      "message_type": "MLSD",
+      "status": "hypothesis",
+      "confidence": 0.8
+    }
+  ],
+  "ordering_rules": [
+    "The PASS command must be preceded by a USER command in the same session.",
+    "Authentication commands (USER/PASS) must be successfully completed before data transfer commands (LIST, RETR, STOR, NLST, APPE) can be issued.",
+    "A data connection setup command (PASV, EPSV, PORT, or EPRT) must precede every data transfer command (LIST, RETR, STOR).",
+    "The RNTO command must be immediately preceded by an RNFR command.",
+    "The QUIT command may be issued at any point during the session to terminate the connection.",
+    "If a PASS command returns a 530 error, the client may return to the USER state to retry authentication."
+  ],
+  "field_constraints": [
+    "USER.username: Argument must be a username string",
+    "PASS.password: Argument must be a password string",
+    "CWD.path: Argument must be a valid directory path",
+    "XCWD.path: Argument must be a valid directory path",
+    "RETR.filename: Argument must be a valid filename or path",
+    "STOR.filename: Argument must be a valid filename or path",
+    "APPE.filename: Argument must be a valid filename or path",
+    "DELE.filename: Argument must be a valid filename or path",
+    "TYPE.type_code: Must be 'A' (ASCII) or 'I' (Image/Binary) as per RFC 959",
+    "PORT.address_port: Must follow the format h1,h2,h3,h4,p1,p2 (IP and port bytes)",
+    "MKD.dirname: Argument must be a directory name to create",
+    "XMKD.dirname: Argument must be a directory name to create",
+    "RMD.dirname: Argument must be a directory name to remove",
+    "XRMD.dirname: Argument must be a directory name to remove",
+    "RNFR.filename_from: Argument must be the existing filename to be renamed",
+    "RNTO.filename_to: Argument must be the new filename for the rename operation"
+  ],
+  "dangerous_input_families": [
+    "credential retry loop",
+    "empty credential",
+    "empty optional argument",
+    "invalid data endpoint",
+    "invalid enum token",
+    "long path",
+    "lowercase enum",
+    "mismatched address family",
+    "missing parameter",
+    "nested directory chain",
+    "overlong credential",
+    "oversized token",
+    "parent traversal",
+    "repeated command",
+    "unexpected extra argument",
+    "unexpected optional argument",
+    "unreachable port"
+  ]
+}

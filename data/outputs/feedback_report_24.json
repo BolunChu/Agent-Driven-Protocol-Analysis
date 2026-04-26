@@ -1,0 +1,82 @@
+{
+  "project_id": 24,
+  "unused_message_types": [],
+  "isolated_states": [],
+  "weak_transitions": [
+    {
+      "description": "AUTH_PENDING -> AUTH_PENDING via PASS",
+      "status": "hypothesis",
+      "confidence": 0.8
+    },
+    {
+      "description": "AUTH_PENDING -> AUTH_PENDING via USER",
+      "status": "hypothesis",
+      "confidence": 0.8
+    },
+    {
+      "description": "AUTHENTICATED -> DATA_TRANSFER via LIST",
+      "status": "hypothesis",
+      "confidence": 0.8
+    },
+    {
+      "description": "DATA_CHANNEL_READY -> DATA_TRANSFER via RETR",
+      "status": "hypothesis",
+      "confidence": 0.8
+    },
+    {
+      "description": "DATA_CHANNEL_READY -> DATA_TRANSFER via LIST",
+      "status": "hypothesis",
+      "confidence": 0.8
+    },
+    {
+      "description": "DATA_TRANSFER -> CLOSED via QUIT",
+      "status": "hypothesis",
+      "confidence": 0.8
+    },
+    {
+      "description": "DATA_TRANSFER -> AUTHENTICATED via CWD",
+      "status": "hypothesis",
+      "confidence": 0.8
+    },
+    {
+      "description": "AUTHENTICATED -> RESETTING via REIN",
+      "status": "hypothesis",
+      "confidence": 0.8
+    },
+    {
+      "description": "RESETTING -> AUTH_PENDING via USER",
+      "status": "hypothesis",
+      "confidence": 0.8
+    },
+    {
+      "description": "AUTHENTICATED -> AUTHENTICATED via PWD",
+      "status": "hypothesis",
+      "confidence": 0.8
+    }
+  ],
+  "supported_ratio": 0.0,
+  "probe_to_transition_ratio": 0.056,
+  "generated_seed_count": 15,
+  "recommended_actions": [
+    "Next iteration should emphasize broader data-channel and post-auth file-operation seeds to improve message-to-transition coverage."
+  ],
+  "suggested_campaign": {
+    "target": "ftp-local",
+    "seed_strategy": "state_progression_then_file_ops",
+    "num_generated_seeds": 15,
+    "focus_commands": [
+      "PASS",
+      "USER",
+      "LIST",
+      "RETR",
+      "QUIT",
+      "CWD"
+    ],
+    "duration_minutes": 30,
+    "objective": "Increase post-auth and data-channel coverage while validating weaker transitions."
+  },
+  "fuzzing_observation": {
+    "likely_stall_point": "probe_validation_gap",
+    "explanation": "Next iteration should emphasize broader data-channel and post-auth file-operation seeds to improve message-to-transition coverage."
+  }
+}

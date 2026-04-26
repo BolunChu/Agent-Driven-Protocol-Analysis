@@ -1,0 +1,234 @@
+{
+  "project_id": 8,
+  "generated_seeds": [
+    {
+      "name": "auth_basic_session",
+      "category": "state_progression",
+      "commands": [
+        "USER anonymous",
+        "PASS anonymous@test.com",
+        "QUIT"
+      ],
+      "expected_states": [
+        "INIT",
+        "AUTH_PENDING",
+        "AUTHENTICATED",
+        "CLOSED"
+      ],
+      "focus_messages": [
+        "USER",
+        "PASS",
+        "QUIT"
+      ]
+    },
+    {
+      "name": "auth_then_pwd",
+      "category": "post_auth_navigation",
+      "commands": [
+        "USER anonymous",
+        "PASS anonymous@test.com",
+        "PWD",
+        "QUIT"
+      ],
+      "expected_states": [
+        "INIT",
+        "AUTH_PENDING",
+        "AUTHENTICATED"
+      ],
+      "focus_messages": [
+        "USER",
+        "PASS",
+        "PWD"
+      ]
+    },
+    {
+      "name": "auth_then_list",
+      "category": "data_flow",
+      "commands": [
+        "USER anonymous",
+        "PASS anonymous@test.com",
+        "PASV",
+        "LIST",
+        "QUIT"
+      ],
+      "expected_states": [
+        "INIT",
+        "AUTH_PENDING",
+        "AUTHENTICATED",
+        "DATA_TRANSFER"
+      ],
+      "focus_messages": [
+        "USER",
+        "PASS",
+        "PASV",
+        "LIST"
+      ]
+    },
+    {
+      "name": "rename_flow",
+      "category": "state_progression",
+      "commands": [
+        "USER anonymous",
+        "PASS anonymous@test.com",
+        "RNFR readme.txt",
+        "RNTO readme_renamed.txt",
+        "QUIT"
+      ],
+      "expected_states": [
+        "INIT",
+        "AUTH_PENDING",
+        "AUTHENTICATED",
+        "RENAME_PENDING"
+      ],
+      "focus_messages": [
+        "USER",
+        "PASS",
+        "RNFR",
+        "RNTO"
+      ]
+    },
+    {
+      "name": "directory_lifecycle",
+      "category": "filesystem_ops",
+      "commands": [
+        "USER anonymous",
+        "PASS anonymous@test.com",
+        "MKD fuzzdir",
+        "CWD fuzzdir",
+        "CDUP",
+        "RMD fuzzdir",
+        "QUIT"
+      ],
+      "expected_states": [
+        "INIT",
+        "AUTH_PENDING",
+        "AUTHENTICATED"
+      ],
+      "focus_messages": [
+        "USER",
+        "PASS",
+        "MKD",
+        "CWD",
+        "RMD"
+      ]
+    },
+    {
+      "name": "metadata_then_transfer",
+      "category": "data_flow",
+      "commands": [
+        "USER anonymous",
+        "PASS anonymous@test.com",
+        "TYPE I",
+        "SIZE readme.txt",
+        "MLST readme.txt",
+        "RETR readme.txt",
+        "QUIT"
+      ],
+      "expected_states": [
+        "INIT",
+        "AUTH_PENDING",
+        "AUTHENTICATED",
+        "DATA_TRANSFER"
+      ],
+      "focus_messages": [
+        "USER",
+        "PASS",
+        "TYPE",
+        "SIZE",
+        "MLST",
+        "RETR"
+      ]
+    },
+    {
+      "name": "session_reset_retry",
+      "category": "state_reset",
+      "commands": [
+        "USER anonymous",
+        "PASS anonymous@test.com",
+        "REIN",
+        "USER anonymous",
+        "PASS anonymous@test.com",
+        "QUIT"
+      ],
+      "expected_states": [
+        "INIT",
+        "AUTH_PENDING",
+        "AUTHENTICATED"
+      ],
+      "focus_messages": [
+        "USER",
+        "PASS",
+        "REIN"
+      ]
+    },
+    {
+      "name": "auth_retry_sequence",
+      "category": "negative_auth",
+      "commands": [
+        "USER admin",
+        "PASS wrongpass",
+        "USER anonymous",
+        "PASS anonymous@test.com",
+        "QUIT"
+      ],
+      "expected_states": [
+        "INIT",
+        "AUTH_PENDING",
+        "AUTHENTICATED"
+      ],
+      "focus_messages": [
+        "USER",
+        "PASS"
+      ]
+    },
+    {
+      "name": "path_edge_cases",
+      "category": "boundary_case",
+      "commands": [
+        "USER anonymous",
+        "PASS anonymous@test.com",
+        "CWD ../",
+        "CWD /",
+        "CWD ./nested/dir",
+        "QUIT"
+      ],
+      "expected_states": [
+        "INIT",
+        "AUTH_PENDING",
+        "AUTHENTICATED"
+      ],
+      "focus_messages": [
+        "USER",
+        "PASS",
+        "CWD"
+      ]
+    },
+    {
+      "name": "overlong_credentials",
+      "category": "boundary_case",
+      "commands": [
+        "USER AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "PASS PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP",
+        "QUIT"
+      ],
+      "expected_states": [
+        "INIT",
+        "AUTH_PENDING"
+      ],
+      "focus_messages": [
+        "USER",
+        "PASS"
+      ]
+    }
+  ],
+  "categories": [
+    "boundary_case",
+    "data_flow",
+    "filesystem_ops",
+    "negative_auth",
+    "post_auth_navigation",
+    "state_progression",
+    "state_reset"
+  ],
+  "seed_count": 10
+}

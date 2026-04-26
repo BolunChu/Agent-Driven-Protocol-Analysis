@@ -1,0 +1,622 @@
+{
+  "project_id": 2,
+  "run_timestamp": "2026-04-25T08:10:38.483708",
+  "data_import": {
+    "doc": 1,
+    "trace_ftp_sessions": 10,
+    "trace_profuzzbench": 39
+  },
+  "metrics": {
+    "message_types": 49,
+    "states": 6,
+    "transitions": 12,
+    "invariants": 14,
+    "evidence_records": 84,
+    "probe_runs": 3
+  },
+  "transition_status_distribution": {
+    "hypothesis": 9,
+    "supported": 3,
+    "disputed": 0
+  },
+  "invariant_status_distribution": {
+    "hypothesis": 14,
+    "supported": 0,
+    "disputed": 0
+  },
+  "llm_tool_calls": {
+    "spec_agent": 1,
+    "trace_agent": 1
+  },
+  "fallback_used": {
+    "spec_agent": false,
+    "trace_agent": false
+  },
+  "message_types_list": [
+    "USER",
+    "PASS",
+    "ACCT",
+    "PWD",
+    "CWD",
+    "CDUP",
+    "RETR",
+    "STOR",
+    "LIST",
+    "NLST",
+    "PASV",
+    "PORT",
+    "TYPE",
+    "QUIT",
+    "NOOP",
+    "SYST",
+    "FEAT",
+    "DELE",
+    "RESP_220",
+    "RESP_230",
+    "RESP_150",
+    "RESP_226",
+    "RESP_331",
+    "RESP_530",
+    "RESP_221",
+    "RESP_257",
+    "APPE",
+    "CAPI",
+    "EPRT",
+    "EPSV",
+    "HELP",
+    "MKD",
+    "MLSD",
+    "MLST",
+    "MODE",
+    "PRUE",
+    "REIN",
+    "RMD",
+    "RNFR",
+    "RNTO",
+    "SIZE",
+    "SMNT",
+    "STAT",
+    "STRU",
+    "XCUP",
+    "XCWD",
+    "XMKD",
+    "XPWD",
+    "XRMD"
+  ],
+  "states_list": [
+    {
+      "name": "INIT",
+      "description": "Initial state upon connection, awaiting user identification.",
+      "confidence": 1.0
+    },
+    {
+      "name": "AUTH_PENDING",
+      "description": "User identified, waiting for password authentication.",
+      "confidence": 1.0
+    },
+    {
+      "name": "AUTHENTICATED",
+      "description": "Authenticated session allowing file operations and navigation.",
+      "confidence": 1.0
+    },
+    {
+      "name": "DATA_TRANSFER",
+      "description": "An active data connection is open for transferring file or directory data.",
+      "confidence": 0.9
+    },
+    {
+      "name": "RENAME_PENDING",
+      "description": "Intermediate state during a file rename operation.",
+      "confidence": 0.9
+    },
+    {
+      "name": "CLOSED",
+      "description": "The session is terminated.",
+      "confidence": 1.0
+    }
+  ],
+  "transitions_list": [
+    {
+      "from": "INIT",
+      "to": "AUTH_PENDING",
+      "via": "USER",
+      "confidence": 0.9500000000000001,
+      "status": "supported"
+    },
+    {
+      "from": "AUTH_PENDING",
+      "to": "AUTHENTICATED",
+      "via": "PASS",
+      "confidence": 0.9500000000000001,
+      "status": "supported"
+    },
+    {
+      "from": "AUTH_PENDING",
+      "to": "AUTH_PENDING",
+      "via": "PASS",
+      "confidence": 0.9500000000000001,
+      "status": "supported"
+    },
+    {
+      "from": "AUTHENTICATED",
+      "to": "DATA_TRANSFER",
+      "via": "LIST",
+      "confidence": 0.8,
+      "status": "hypothesis"
+    },
+    {
+      "from": "AUTHENTICATED",
+      "to": "DATA_TRANSFER",
+      "via": "RETR",
+      "confidence": 0.8,
+      "status": "hypothesis"
+    },
+    {
+      "from": "AUTHENTICATED",
+      "to": "DATA_TRANSFER",
+      "via": "STOR",
+      "confidence": 0.8,
+      "status": "hypothesis"
+    },
+    {
+      "from": "DATA_TRANSFER",
+      "to": "AUTHENTICATED",
+      "via": "RESP_226",
+      "confidence": 0.8,
+      "status": "hypothesis"
+    },
+    {
+      "from": "AUTHENTICATED",
+      "to": "RENAME_PENDING",
+      "via": "RNFR",
+      "confidence": 0.8,
+      "status": "hypothesis"
+    },
+    {
+      "from": "RENAME_PENDING",
+      "to": "AUTHENTICATED",
+      "via": "RNTO",
+      "confidence": 0.8,
+      "status": "hypothesis"
+    },
+    {
+      "from": "AUTHENTICATED",
+      "to": "CLOSED",
+      "via": "QUIT",
+      "confidence": 0.8,
+      "status": "hypothesis"
+    },
+    {
+      "from": "INIT",
+      "to": "CLOSED",
+      "via": "QUIT",
+      "confidence": 0.8,
+      "status": "hypothesis"
+    },
+    {
+      "from": "AUTHENTICATED",
+      "to": "INIT",
+      "via": "REIN",
+      "confidence": 0.8,
+      "status": "hypothesis"
+    }
+  ],
+  "invariants_list": [
+    {
+      "rule": "The PASS command must be preceded by a USER command in the same session.",
+      "type": "ordering",
+      "confidence": 0.7,
+      "status": "hypothesis"
+    },
+    {
+      "rule": "RETR, STOR, LIST, and NLST commands can only be issued after a successful authentication (USER followed by PASS resulting in a 230 response).",
+      "type": "state_requirement",
+      "confidence": 0.7,
+      "status": "hypothesis"
+    },
+    {
+      "rule": "A data connection setup command (PASV or PORT) should be issued before commands that open a data connection (LIST, RETR, STOR, NLST).",
+      "type": "ordering",
+      "confidence": 0.7,
+      "status": "hypothesis"
+    },
+    {
+      "rule": "A session begins with a 220 server response and ideally ends with a QUIT command followed by a 221 response.",
+      "type": "ordering",
+      "confidence": 0.7,
+      "status": "hypothesis"
+    },
+    {
+      "rule": "Data transfer commands (RETR, STOR, LIST, NLST) result in a 150 response (preliminary) followed by a 226 response (completion) upon finishing the data transfer.",
+      "type": "ordering",
+      "confidence": 0.7,
+      "status": "hypothesis"
+    },
+    {
+      "rule": "If a 530 response is received after PASS, the client may restart the authentication sequence with a new USER command.",
+      "type": "conditional",
+      "confidence": 0.7,
+      "status": "hypothesis"
+    },
+    {
+      "rule": "A USER command resulting in a 331 response must be followed by a PASS command.",
+      "type": "ordering",
+      "confidence": 0.7,
+      "status": "hypothesis"
+    },
+    {
+      "rule": "USER.username: Must be a valid username string",
+      "type": "field_constraint",
+      "confidence": 0.7,
+      "status": "hypothesis"
+    },
+    {
+      "rule": "PASS.password: Must be a valid password string",
+      "type": "field_constraint",
+      "confidence": 0.7,
+      "status": "hypothesis"
+    },
+    {
+      "rule": "CWD.path: Must be a path to a directory",
+      "type": "field_constraint",
+      "confidence": 0.7,
+      "status": "hypothesis"
+    },
+    {
+      "rule": "RETR.filename: Must be a path to a file",
+      "type": "field_constraint",
+      "confidence": 0.7,
+      "status": "hypothesis"
+    },
+    {
+      "rule": "STOR.filename: Must be a path to a file",
+      "type": "field_constraint",
+      "confidence": 0.7,
+      "status": "hypothesis"
+    },
+    {
+      "rule": "PORT.address_port: Format h1,h2,h3,h4,p1,p2 (IP address and port)",
+      "type": "field_constraint",
+      "confidence": 0.7,
+      "status": "hypothesis"
+    },
+    {
+      "rule": "TYPE.type_code: Either 'A' for ASCII or 'I' for Image (binary)",
+      "type": "field_constraint",
+      "confidence": 0.7,
+      "status": "hypothesis"
+    }
+  ],
+  "pipeline_results": {
+    "spec": {
+      "agent": "spec",
+      "llm_tool_calls": 1,
+      "fallback_used": false,
+      "message_types_created": [
+        "USER",
+        "PASS",
+        "ACCT",
+        "PWD",
+        "CWD",
+        "CDUP",
+        "RETR",
+        "STOR",
+        "LIST",
+        "NLST",
+        "PASV",
+        "PORT",
+        "TYPE",
+        "QUIT",
+        "NOOP",
+        "SYST",
+        "FEAT",
+        "DELE",
+        "RESP_220",
+        "RESP_230",
+        "RESP_150",
+        "RESP_226",
+        "RESP_331",
+        "RESP_530",
+        "RESP_221",
+        "RESP_257"
+      ],
+      "invariants_created": [
+        "The PASS command must be preceded by a USER command in the same session.",
+        "RETR, STOR, LIST, and NLST commands can only be issued after a successful authentication (USER followed by PASS resulting in a 230 response).",
+        "A data connection setup command (PASV or PORT) should be issued before commands that open a data connection (LIST, RETR, STOR, NLST).",
+        "A session begins with a 220 server response and ideally ends with a QUIT command followed by a 221 response.",
+        "Data transfer commands (RETR, STOR, LIST, NLST) result in a 150 response (preliminary) followed by a 226 response (completion) upon finishing the data transfer.",
+        "If a 530 response is received after PASS, the client may restart the authentication sequence with a new USER command.",
+        "A USER command resulting in a 331 response must be followed by a PASS command.",
+        "USER.username: Must be a valid username string",
+        "PASS.password: Must be a valid password string",
+        "CWD.path: Must be a path to a directory",
+        "RETR.filename: Must be a path to a file",
+        "STOR.filename: Must be a path to a file",
+        "PORT.address_port: Format h1,h2,h3,h4,p1,p2 (IP address and port)",
+        "TYPE.type_code: Either 'A' for ASCII or 'I' for Image (binary)"
+      ],
+      "docs_processed": 1,
+      "traces_summarized": 49
+    },
+    "trace": {
+      "agent": "trace",
+      "events_parsed": 421,
+      "sessions_processed": 49,
+      "llm_tool_calls": 1,
+      "fallback_used": false,
+      "message_types_updated": [
+        "APPE",
+        "CAPI",
+        "EPRT",
+        "EPSV",
+        "HELP",
+        "MKD",
+        "MLSD",
+        "MLST",
+        "MODE",
+        "PRUE",
+        "REIN",
+        "RMD",
+        "RNFR",
+        "RNTO",
+        "SIZE",
+        "SMNT",
+        "STAT",
+        "STRU",
+        "XCUP",
+        "XCWD",
+        "XMKD",
+        "XPWD",
+        "XRMD"
+      ],
+      "states_created": [
+        "INIT",
+        "AUTH_PENDING",
+        "AUTHENTICATED",
+        "DATA_TRANSFER",
+        "RENAME_PENDING",
+        "CLOSED"
+      ],
+      "transitions_created": [
+        "INIT → AUTH_PENDING via USER",
+        "AUTH_PENDING → AUTHENTICATED via PASS",
+        "AUTH_PENDING → AUTH_PENDING via PASS",
+        "AUTHENTICATED → DATA_TRANSFER via LIST",
+        "AUTHENTICATED → DATA_TRANSFER via RETR",
+        "AUTHENTICATED → DATA_TRANSFER via STOR",
+        "DATA_TRANSFER → AUTHENTICATED via RESP_226",
+        "AUTHENTICATED → RENAME_PENDING via RNFR",
+        "RENAME_PENDING → AUTHENTICATED via RNTO",
+        "AUTHENTICATED → CLOSED via QUIT",
+        "INIT → CLOSED via QUIT",
+        "AUTHENTICATED → INIT via REIN"
+      ]
+    },
+    "verifier": {
+      "agent": "verifier",
+      "transitions_verified": 12,
+      "invariants_verified": 14,
+      "status_changes": [
+        {
+          "type": "transition",
+          "description": "INIT -> AUTH_PENDING via USER",
+          "old_status": "hypothesis",
+          "new_status": "hypothesis",
+          "confidence": 0.8,
+          "evidence_count": 1
+        },
+        {
+          "type": "transition",
+          "description": "AUTH_PENDING -> AUTHENTICATED via PASS",
+          "old_status": "hypothesis",
+          "new_status": "hypothesis",
+          "confidence": 0.8,
+          "evidence_count": 1
+        },
+        {
+          "type": "transition",
+          "description": "AUTH_PENDING -> AUTH_PENDING via PASS",
+          "old_status": "hypothesis",
+          "new_status": "hypothesis",
+          "confidence": 0.8,
+          "evidence_count": 1
+        },
+        {
+          "type": "transition",
+          "description": "AUTHENTICATED -> DATA_TRANSFER via LIST",
+          "old_status": "hypothesis",
+          "new_status": "hypothesis",
+          "confidence": 0.8,
+          "evidence_count": 1
+        },
+        {
+          "type": "transition",
+          "description": "AUTHENTICATED -> DATA_TRANSFER via RETR",
+          "old_status": "hypothesis",
+          "new_status": "hypothesis",
+          "confidence": 0.8,
+          "evidence_count": 1
+        },
+        {
+          "type": "transition",
+          "description": "AUTHENTICATED -> DATA_TRANSFER via STOR",
+          "old_status": "hypothesis",
+          "new_status": "hypothesis",
+          "confidence": 0.8,
+          "evidence_count": 1
+        },
+        {
+          "type": "transition",
+          "description": "DATA_TRANSFER -> AUTHENTICATED via RESP_226",
+          "old_status": "hypothesis",
+          "new_status": "hypothesis",
+          "confidence": 0.8,
+          "evidence_count": 1
+        },
+        {
+          "type": "transition",
+          "description": "AUTHENTICATED -> RENAME_PENDING via RNFR",
+          "old_status": "hypothesis",
+          "new_status": "hypothesis",
+          "confidence": 0.8,
+          "evidence_count": 1
+        },
+        {
+          "type": "transition",
+          "description": "RENAME_PENDING -> AUTHENTICATED via RNTO",
+          "old_status": "hypothesis",
+          "new_status": "hypothesis",
+          "confidence": 0.8,
+          "evidence_count": 1
+        },
+        {
+          "type": "transition",
+          "description": "AUTHENTICATED -> CLOSED via QUIT",
+          "old_status": "hypothesis",
+          "new_status": "hypothesis",
+          "confidence": 0.8,
+          "evidence_count": 1
+        },
+        {
+          "type": "transition",
+          "description": "INIT -> CLOSED via QUIT",
+          "old_status": "hypothesis",
+          "new_status": "hypothesis",
+          "confidence": 0.8,
+          "evidence_count": 1
+        },
+        {
+          "type": "invariant",
+          "description": "The PASS command must be preceded by a USER command in the same session.",
+          "old_status": "hypothesis",
+          "new_status": "hypothesis",
+          "confidence": 0.7,
+          "evidence_count": 1
+        },
+        {
+          "type": "invariant",
+          "description": "RETR, STOR, LIST, and NLST commands can only be issued after a successful authentication (USER followed by PASS resulting in a 230 response).",
+          "old_status": "hypothesis",
+          "new_status": "hypothesis",
+          "confidence": 0.7,
+          "evidence_count": 1
+        },
+        {
+          "type": "invariant",
+          "description": "A data connection setup command (PASV or PORT) should be issued before commands that open a data connection (LIST, RETR, STOR, NLST).",
+          "old_status": "hypothesis",
+          "new_status": "hypothesis",
+          "confidence": 0.7,
+          "evidence_count": 1
+        },
+        {
+          "type": "invariant",
+          "description": "A session begins with a 220 server response and ideally ends with a QUIT command followed by a 221 response.",
+          "old_status": "hypothesis",
+          "new_status": "hypothesis",
+          "confidence": 0.7,
+          "evidence_count": 1
+        },
+        {
+          "type": "invariant",
+          "description": "Data transfer commands (RETR, STOR, LIST, NLST) result in a 150 response (preliminary) followed by a 226 response (completion) upon finishing the data transfer.",
+          "old_status": "hypothesis",
+          "new_status": "hypothesis",
+          "confidence": 0.7,
+          "evidence_count": 1
+        },
+        {
+          "type": "invariant",
+          "description": "If a 530 response is received after PASS, the client may restart the authentication sequence with a new USER command.",
+          "old_status": "hypothesis",
+          "new_status": "hypothesis",
+          "confidence": 0.7,
+          "evidence_count": 1
+        },
+        {
+          "type": "invariant",
+          "description": "A USER command resulting in a 331 response must be followed by a PASS command.",
+          "old_status": "hypothesis",
+          "new_status": "hypothesis",
+          "confidence": 0.7,
+          "evidence_count": 1
+        },
+        {
+          "type": "invariant",
+          "description": "USER.username: Must be a valid username string",
+          "old_status": "hypothesis",
+          "new_status": "hypothesis",
+          "confidence": 0.7,
+          "evidence_count": 1
+        },
+        {
+          "type": "invariant",
+          "description": "PASS.password: Must be a valid password string",
+          "old_status": "hypothesis",
+          "new_status": "hypothesis",
+          "confidence": 0.7,
+          "evidence_count": 1
+        },
+        {
+          "type": "invariant",
+          "description": "CWD.path: Must be a path to a directory",
+          "old_status": "hypothesis",
+          "new_status": "hypothesis",
+          "confidence": 0.7,
+          "evidence_count": 1
+        },
+        {
+          "type": "invariant",
+          "description": "RETR.filename: Must be a path to a file",
+          "old_status": "hypothesis",
+          "new_status": "hypothesis",
+          "confidence": 0.7,
+          "evidence_count": 1
+        },
+        {
+          "type": "invariant",
+          "description": "STOR.filename: Must be a path to a file",
+          "old_status": "hypothesis",
+          "new_status": "hypothesis",
+          "confidence": 0.7,
+          "evidence_count": 1
+        },
+        {
+          "type": "invariant",
+          "description": "PORT.address_port: Format h1,h2,h3,h4,p1,p2 (IP address and port)",
+          "old_status": "hypothesis",
+          "new_status": "hypothesis",
+          "confidence": 0.7,
+          "evidence_count": 1
+        },
+        {
+          "type": "invariant",
+          "description": "TYPE.type_code: Either 'A' for ASCII or 'I' for Image (binary)",
+          "old_status": "hypothesis",
+          "new_status": "hypothesis",
+          "confidence": 0.7,
+          "evidence_count": 1
+        }
+      ]
+    },
+    "probe": {
+      "agent": "probe",
+      "probes_executed": 3,
+      "model_updates": [
+        {
+          "target": "INIT -> AUTH_PENDING via USER",
+          "action": "confirmed"
+        },
+        {
+          "target": "AUTH_PENDING -> AUTHENTICATED via PASS",
+          "action": "confirmed"
+        },
+        {
+          "target": "AUTH_PENDING -> AUTH_PENDING via PASS",
+          "action": "confirmed"
+        }
+      ]
+    }
+  }
+}

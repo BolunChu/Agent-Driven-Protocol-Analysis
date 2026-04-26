@@ -33,10 +33,9 @@ yarn-error.log*
 pnpm-debug.log*
 
 # ── Database & Outputs ─────────
-data/*.db
+# data/*.db
 data/*.sqlite
 data/*.sqlite3
-data/outputs/
 !data/docs/
 !data/traces/
 

@@ -1,0 +1,348 @@
+{
+  "generated_at": "2026-04-26T13:14:55.796627",
+  "protocols_run": [
+    "FTP",
+    "SMTP",
+    "RTSP",
+    "HTTP"
+  ],
+  "comparison_table": [
+    {
+      "protocol": "FTP",
+      "message_types": 39,
+      "states": 8,
+      "transitions": 14,
+      "evidence": 79,
+      "probes": 3,
+      "supported_transitions": 0,
+      "hypothesis_transitions": 14,
+      "disputed_transitions": 0,
+      "spec_agent_ok": true,
+      "trace_agent_ok": true,
+      "transition_provenance_agent": 14,
+      "transition_provenance_fallback": 0,
+      "schema_messages": 39,
+      "generated_seeds": 15
+    },
+    {
+      "protocol": "SMTP",
+      "message_types": 14,
+      "states": 7,
+      "transitions": 16,
+      "evidence": 56,
+      "probes": 3,
+      "supported_transitions": 0,
+      "hypothesis_transitions": 16,
+      "disputed_transitions": 0,
+      "spec_agent_ok": true,
+      "trace_agent_ok": true,
+      "transition_provenance_agent": 16,
+      "transition_provenance_fallback": 0,
+      "schema_messages": 14,
+      "generated_seeds": 0
+    },
+    {
+      "protocol": "RTSP",
+      "message_types": 7,
+      "states": 6,
+      "transitions": 2,
+      "evidence": 25,
+      "probes": 2,
+      "supported_transitions": 0,
+      "hypothesis_transitions": 2,
+      "disputed_transitions": 0,
+      "spec_agent_ok": true,
+      "trace_agent_ok": true,
+      "transition_provenance_agent": 2,
+      "transition_provenance_fallback": 0,
+      "schema_messages": 7,
+      "generated_seeds": 0
+    },
+    {
+      "protocol": "HTTP",
+      "message_types": 9,
+      "states": 5,
+      "transitions": 11,
+      "evidence": 38,
+      "probes": 3,
+      "supported_transitions": 0,
+      "hypothesis_transitions": 11,
+      "disputed_transitions": 0,
+      "spec_agent_ok": true,
+      "trace_agent_ok": true,
+      "transition_provenance_agent": 11,
+      "transition_provenance_fallback": 0,
+      "schema_messages": 9,
+      "generated_seeds": 0
+    }
+  ],
+  "per_protocol": {
+    "FTP": {
+      "protocol": "FTP",
+      "project_id": 35,
+      "timestamp": "2026-04-26T13:10:09.577427",
+      "import_stats": {
+        "doc": 1,
+        "trace": 10,
+        "seeds": 39
+      },
+      "metrics": {
+        "message_types": 39,
+        "states": 8,
+        "transitions": 14,
+        "invariants": 13,
+        "evidence_records": 79,
+        "probe_runs": 3
+      },
+      "transition_status": {
+        "hypothesis": 14,
+        "supported": 0,
+        "disputed": 0
+      },
+      "agent_path": {
+        "spec_fallback": false,
+        "trace_fallback": false,
+        "spec_llm_calls": 1,
+        "trace_llm_calls": 1,
+        "probe_llm_calls": 1,
+        "transition_provenance": {
+          "agent": 14,
+          "fallback": 0
+        }
+      },
+      "artifacts": {
+        "schema_message_count": 39,
+        "seed_count": 15,
+        "feedback_actions": 1
+      },
+      "message_types_list": [
+        "USER",
+        "PASS",
+        "ACCT",
+        "PWD",
+        "CWD",
+        "CDUP",
+        "RETR",
+        "STOR",
+        "LIST",
+        "NLST",
+        "PASV",
+        "PORT",
+        "TYPE",
+        "QUIT",
+        "NOOP",
+        "SYST",
+        "FEAT",
+        "STAT",
+        "SIZE",
+        "MODE",
+        "RNFR",
+        "RNTO",
+        "MKD",
+        "XMKD",
+        "DELE",
+        "REIN",
+        "SMNT",
+        "HELP",
+        "STRU",
+        "APPE",
+        "XCWD",
+        "XPWD",
+        "XCUP",
+        "EPRT",
+        "MLST",
+        "MLSD",
+        "RMD",
+        "XRMD",
+        "EPSV"
+      ],
+      "states_list": [
+        "INIT",
+        "AUTH_PENDING",
+        "AUTHENTICATED",
+        "DATA_CHANNEL_READY",
+        "DATA_TRANSFER",
+        "RENAME_PENDING",
+        "RESETTING",
+        "CLOSED"
+      ]
+    },
+    "SMTP": {
+      "protocol": "SMTP",
+      "project_id": 36,
+      "timestamp": "2026-04-26T13:11:05.509752",
+      "import_stats": {
+        "doc": 1,
+        "trace": 5,
+        "seeds": 5
+      },
+      "metrics": {
+        "message_types": 14,
+        "states": 7,
+        "transitions": 16,
+        "invariants": 9,
+        "evidence_records": 56,
+        "probe_runs": 3
+      },
+      "transition_status": {
+        "hypothesis": 16,
+        "supported": 0,
+        "disputed": 0
+      },
+      "agent_path": {
+        "spec_fallback": false,
+        "trace_fallback": false,
+        "spec_llm_calls": 1,
+        "trace_llm_calls": 1,
+        "probe_llm_calls": 1,
+        "transition_provenance": {
+          "agent": 16,
+          "fallback": 0
+        }
+      },
+      "artifacts": {
+        "schema_message_count": 14,
+        "seed_count": 0,
+        "feedback_actions": 2
+      },
+      "message_types_list": [
+        "EHLO",
+        "HELO",
+        "MAIL FROM",
+        "RCPT TO",
+        "DATA",
+        "RSET",
+        "QUIT",
+        "AUTH",
+        "STARTTLS",
+        "VRFY",
+        "EXPN",
+        "NOOP",
+        "MAIL",
+        "RCPT"
+      ],
+      "states_list": [
+        "CONNECTED",
+        "GREETED",
+        "AUTHENTICATED",
+        "MAIL_PENDING",
+        "RCPT_PENDING",
+        "MESSAGE_SENT",
+        "CLOSED"
+      ]
+    },
+    "RTSP": {
+      "protocol": "RTSP",
+      "project_id": 37,
+      "timestamp": "2026-04-26T13:13:49.650333",
+      "import_stats": {
+        "doc": 1,
+        "trace": 3,
+        "seeds": 3
+      },
+      "metrics": {
+        "message_types": 7,
+        "states": 6,
+        "transitions": 2,
+        "invariants": 9,
+        "evidence_records": 25,
+        "probe_runs": 2
+      },
+      "transition_status": {
+        "hypothesis": 2,
+        "supported": 0,
+        "disputed": 0
+      },
+      "agent_path": {
+        "spec_fallback": false,
+        "trace_fallback": false,
+        "spec_llm_calls": 1,
+        "trace_llm_calls": 1,
+        "probe_llm_calls": 1,
+        "transition_provenance": {
+          "agent": 2,
+          "fallback": 0
+        }
+      },
+      "artifacts": {
+        "schema_message_count": 7,
+        "seed_count": 0,
+        "feedback_actions": 2
+      },
+      "message_types_list": [
+        "OPTIONS",
+        "DESCRIBE",
+        "SETUP",
+        "PLAY",
+        "PAUSE",
+        "TEARDOWN",
+        "GET_PARAMETER"
+      ],
+      "states_list": [
+        "INIT",
+        "DESCRIBED",
+        "READY",
+        "PLAYING",
+        "PAUSED",
+        "CLOSED"
+      ]
+    },
+    "HTTP": {
+      "protocol": "HTTP",
+      "project_id": 38,
+      "timestamp": "2026-04-26T13:14:55.796250",
+      "import_stats": {
+        "doc": 1,
+        "trace": 3,
+        "seeds": 3
+      },
+      "metrics": {
+        "message_types": 9,
+        "states": 5,
+        "transitions": 11,
+        "invariants": 9,
+        "evidence_records": 38,
+        "probe_runs": 3
+      },
+      "transition_status": {
+        "hypothesis": 11,
+        "supported": 0,
+        "disputed": 0
+      },
+      "agent_path": {
+        "spec_fallback": false,
+        "trace_fallback": false,
+        "spec_llm_calls": 1,
+        "trace_llm_calls": 1,
+        "probe_llm_calls": 1,
+        "transition_provenance": {
+          "agent": 11,
+          "fallback": 0
+        }
+      },
+      "artifacts": {
+        "schema_message_count": 9,
+        "seed_count": 0,
+        "feedback_actions": 1
+      },
+      "message_types_list": [
+        "HTTPREQUEST",
+        "HTTPRESPONSE",
+        "DELETE",
+        "GET",
+        "HEAD",
+        "OPTIONS",
+        "PATCH",
+        "POST",
+        "PUT"
+      ],
+      "states_list": [
+        "INIT",
+        "RESPONSE_RECEIVED",
+        "AUTH_REQUIRED",
+        "REDIRECT",
+        "ERROR"
+      ]
+    }
+  }
+}

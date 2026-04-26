@@ -1,0 +1,673 @@
+{
+  "project_id": 31,
+  "run_timestamp": "2026-04-26T10:26:25.857184",
+  "data_import": {
+    "doc": 0,
+    "trace_protocol_sessions": 0,
+    "trace_profuzzbench": 0
+  },
+  "metrics": {
+    "message_types": 10,
+    "states": 0,
+    "transitions": 0,
+    "invariants": 10,
+    "evidence_records": 20,
+    "probe_runs": 0
+  },
+  "transition_status_distribution": {
+    "hypothesis": 0,
+    "supported": 0,
+    "disputed": 0
+  },
+  "invariant_status_distribution": {
+    "hypothesis": 10,
+    "supported": 0,
+    "disputed": 0
+  },
+  "llm_tool_calls": {
+    "spec_agent": 1,
+    "trace_agent": 0,
+    "probe_agent": 0
+  },
+  "fallback_used": {
+    "spec_agent": false,
+    "trace_agent": false
+  },
+  "derived_artifacts": {
+    "schema_message_count": 10,
+    "generated_seed_count": 0,
+    "feedback_actions": 2
+  },
+  "agent_path_signals": {
+    "trace_observation_tool_used": false,
+    "probe_llm_plan_used": false
+  },
+  "claim_provenance_distribution": {
+    "message_type": {
+      "agent": 10,
+      "fallback": 0,
+      "mixed": 0,
+      "other": 0
+    },
+    "state": {
+      "agent": 0,
+      "fallback": 0,
+      "mixed": 0,
+      "other": 0
+    },
+    "transition": {
+      "agent": 0,
+      "fallback": 0,
+      "mixed": 0,
+      "other": 0
+    },
+    "invariant": {
+      "agent": 10,
+      "fallback": 0,
+      "mixed": 0,
+      "other": 0
+    }
+  },
+  "message_types_list": [
+    "S_GREETING_220",
+    "C_EHLO",
+    "C_HELO",
+    "C_MAIL_FROM",
+    "C_RCPT_TO",
+    "C_DATA",
+    "S_START_INPUT_354",
+    "S_OK_250",
+    "C_QUIT",
+    "S_BYE_221"
+  ],
+  "states_list": [],
+  "transitions_list": [],
+  "invariants_list": [
+    {
+      "rule": "The server must send a 220 greeting before any client command.",
+      "type": "state_requirement",
+      "confidence": 0.9,
+      "status": "hypothesis"
+    },
+    {
+      "rule": "The client must identify itself with HELO or EHLO before initiating a MAIL FROM transaction.",
+      "type": "ordering",
+      "confidence": 0.9,
+      "status": "hypothesis"
+    },
+    {
+      "rule": "MAIL FROM must precede RCPT TO.",
+      "type": "ordering",
+      "confidence": 0.9,
+      "status": "hypothesis"
+    },
+    {
+      "rule": "RCPT TO must precede the DATA command.",
+      "type": "ordering",
+      "confidence": 0.9,
+      "status": "hypothesis"
+    },
+    {
+      "rule": "The server must respond with 354 to a DATA command before the client sends the message content.",
+      "type": "ordering",
+      "confidence": 0.9,
+      "status": "hypothesis"
+    },
+    {
+      "rule": "At least one valid RCPT TO command must be accepted before DATA is issued.",
+      "type": "conditional",
+      "confidence": 0.9,
+      "status": "hypothesis"
+    },
+    {
+      "rule": "EHLO/HELO.domain: Must be a valid domain name or IP literal.",
+      "type": "field_constraint",
+      "confidence": 0.8,
+      "status": "hypothesis"
+    },
+    {
+      "rule": "MAIL FROM.reverse-path: Must be a valid reverse-path (email address), often enclosed in <>.",
+      "type": "field_constraint",
+      "confidence": 0.8,
+      "status": "hypothesis"
+    },
+    {
+      "rule": "RCPT TO.forward-path: Must be a valid forward-path (email address), often enclosed in <>.",
+      "type": "field_constraint",
+      "confidence": 0.8,
+      "status": "hypothesis"
+    },
+    {
+      "rule": "DATA_CONTENT.message_data: Must terminate with a line containing only a period (CRLF.CRLF).",
+      "type": "field_constraint",
+      "confidence": 0.9,
+      "status": "hypothesis"
+    }
+  ],
+  "protocol_schema": {
+    "schema_version": 1,
+    "project_id": 31,
+    "protocol": "SMTP",
+    "messages": {
+      "C_DATA": {
+        "template": "DATA",
+        "fields": {},
+        "preconditions": [],
+        "postconditions": [],
+        "dangerous_inputs": [
+          "unexpected extra argument",
+          "repeated command",
+          "oversized token"
+        ],
+        "observed_count": 0,
+        "confidence": 1.0
+      },
+      "C_EHLO": {
+        "template": "EHLO <domain>",
+        "fields": {},
+        "preconditions": [],
+        "postconditions": [],
+        "dangerous_inputs": [
+          "unexpected extra argument",
+          "repeated command",
+          "oversized token"
+        ],
+        "observed_count": 0,
+        "confidence": 1.0
+      },
+      "C_HELO": {
+        "template": "HELO <domain>",
+        "fields": {},
+        "preconditions": [],
+        "postconditions": [],
+        "dangerous_inputs": [
+          "unexpected extra argument",
+          "repeated command",
+          "oversized token"
+        ],
+        "observed_count": 0,
+        "confidence": 1.0
+      },
+      "C_MAIL_FROM": {
+        "template": "MAIL FROM:<reverse-path>",
+        "fields": {},
+        "preconditions": [],
+        "postconditions": [],
+        "dangerous_inputs": [
+          "unexpected extra argument",
+          "repeated command",
+          "oversized token"
+        ],
+        "observed_count": 0,
+        "confidence": 1.0
+      },
+      "C_QUIT": {
+        "template": "QUIT",
+        "fields": {},
+        "preconditions": [],
+        "postconditions": [],
+        "dangerous_inputs": [
+          "unexpected extra argument",
+          "repeated command",
+          "oversized token"
+        ],
+        "observed_count": 0,
+        "confidence": 1.0
+      },
+      "C_RCPT_TO": {
+        "template": "RCPT TO:<forward-path>",
+        "fields": {},
+        "preconditions": [],
+        "postconditions": [],
+        "dangerous_inputs": [
+          "unexpected extra argument",
+          "repeated command",
+          "oversized token"
+        ],
+        "observed_count": 0,
+        "confidence": 1.0
+      },
+      "S_BYE_221": {
+        "template": "221 <text>",
+        "fields": {},
+        "preconditions": [],
+        "postconditions": [],
+        "dangerous_inputs": [
+          "unexpected extra argument",
+          "repeated command",
+          "oversized token"
+        ],
+        "observed_count": 0,
+        "confidence": 1.0
+      },
+      "S_GREETING_220": {
+        "template": "220 <hostname> ESMTP <service_info>",
+        "fields": {},
+        "preconditions": [],
+        "postconditions": [],
+        "dangerous_inputs": [
+          "unexpected extra argument",
+          "repeated command",
+          "oversized token"
+        ],
+        "observed_count": 0,
+        "confidence": 1.0
+      },
+      "S_OK_250": {
+        "template": "250 <text>",
+        "fields": {},
+        "preconditions": [],
+        "postconditions": [],
+        "dangerous_inputs": [
+          "unexpected extra argument",
+          "repeated command",
+          "oversized token"
+        ],
+        "observed_count": 0,
+        "confidence": 1.0
+      },
+      "S_START_INPUT_354": {
+        "template": "354 <text>",
+        "fields": {},
+        "preconditions": [],
+        "postconditions": [],
+        "dangerous_inputs": [
+          "unexpected extra argument",
+          "repeated command",
+          "oversized token"
+        ],
+        "observed_count": 0,
+        "confidence": 1.0
+      }
+    },
+    "states": [],
+    "transitions": [],
+    "ordering_rules": [
+      "The server must send a 220 greeting before any client command.",
+      "The client must identify itself with HELO or EHLO before initiating a MAIL FROM transaction.",
+      "MAIL FROM must precede RCPT TO.",
+      "RCPT TO must precede the DATA command.",
+      "The server must respond with 354 to a DATA command before the client sends the message content.",
+      "At least one valid RCPT TO command must be accepted before DATA is issued."
+    ],
+    "field_constraints": [
+      "EHLO/HELO.domain: Must be a valid domain name or IP literal.",
+      "MAIL FROM.reverse-path: Must be a valid reverse-path (email address), often enclosed in <>.",
+      "RCPT TO.forward-path: Must be a valid forward-path (email address), often enclosed in <>.",
+      "DATA_CONTENT.message_data: Must terminate with a line containing only a period (CRLF.CRLF)."
+    ],
+    "dangerous_input_families": [
+      "oversized token",
+      "repeated command",
+      "unexpected extra argument"
+    ]
+  },
+  "generated_seed_corpus": {
+    "project_id": 31,
+    "generated_seeds": [],
+    "categories": [],
+    "seed_count": 0
+  },
+  "feedback_analysis": {
+    "project_id": 31,
+    "unused_message_types": [
+      "C_DATA",
+      "C_EHLO",
+      "C_HELO",
+      "C_MAIL_FROM",
+      "C_QUIT",
+      "C_RCPT_TO",
+      "S_BYE_221",
+      "S_GREETING_220",
+      "S_OK_250",
+      "S_START_INPUT_354"
+    ],
+    "isolated_states": [],
+    "weak_transitions": [],
+    "supported_ratio": 0.0,
+    "probe_to_transition_ratio": 0.0,
+    "generated_seed_count": 0,
+    "recommended_actions": [
+      "Several observed message types are not yet represented in the state machine; prioritize seeds and probes for: C_DATA, C_EHLO, C_HELO, C_MAIL_FROM, C_QUIT, C_RCPT_TO, S_BYE_221, S_GREETING_220",
+      "No probes were executed; schedule online validation for authentication, directory traversal, and rename flows."
+    ],
+    "suggested_campaign": {
+      "target": "ftp-local",
+      "seed_strategy": "state_progression_then_file_ops",
+      "num_generated_seeds": 0,
+      "focus_commands": [],
+      "duration_minutes": 30,
+      "objective": "Increase post-auth and data-channel coverage while validating weaker transitions."
+    },
+    "fuzzing_observation": {
+      "likely_stall_point": "authentication_or_post_auth_gap",
+      "explanation": "Several observed message types are not yet represented in the state machine; prioritize seeds and probes for: C_DATA, C_EHLO, C_HELO, C_MAIL_FROM, C_QUIT, C_RCPT_TO, S_BYE_221, S_GREETING_220"
+    }
+  },
+  "pipeline_results": {
+    "spec": {
+      "agent": "spec",
+      "llm_tool_calls": 1,
+      "fallback_used": false,
+      "message_types_created": [
+        "S_GREETING_220",
+        "C_EHLO",
+        "C_HELO",
+        "C_MAIL_FROM",
+        "C_RCPT_TO",
+        "C_DATA",
+        "S_START_INPUT_354",
+        "S_OK_250",
+        "C_QUIT",
+        "S_BYE_221"
+      ],
+      "invariants_created": [
+        "The server must send a 220 greeting before any client command.",
+        "The client must identify itself with HELO or EHLO before initiating a MAIL FROM transaction.",
+        "MAIL FROM must precede RCPT TO.",
+        "RCPT TO must precede the DATA command.",
+        "The server must respond with 354 to a DATA command before the client sends the message content.",
+        "At least one valid RCPT TO command must be accepted before DATA is issued.",
+        "EHLO/HELO.domain: Must be a valid domain name or IP literal.",
+        "MAIL FROM.reverse-path: Must be a valid reverse-path (email address), often enclosed in <>.",
+        "RCPT TO.forward-path: Must be a valid forward-path (email address), often enclosed in <>.",
+        "DATA_CONTENT.message_data: Must terminate with a line containing only a period (CRLF.CRLF)."
+      ],
+      "docs_processed": 0,
+      "traces_summarized": 0
+    },
+    "trace": {
+      "agent": "trace",
+      "message": "No events parsed from traces",
+      "events": 0
+    },
+    "verifier": {
+      "agent": "verifier",
+      "transitions_verified": 0,
+      "invariants_verified": 10,
+      "status_changes": [
+        {
+          "type": "invariant",
+          "description": "The server must send a 220 greeting before any client command.",
+          "old_status": "hypothesis",
+          "new_status": "hypothesis",
+          "confidence": 0.9,
+          "evidence_count": 1,
+          "rationale": "This is a fundamental requirement of the SMTP protocol specification as documented by the agent."
+        },
+        {
+          "type": "invariant",
+          "description": "The client must identify itself with HELO or EHLO before initiating a MAIL FROM transaction.",
+          "old_status": "hypothesis",
+          "new_status": "hypothesis",
+          "confidence": 0.9,
+          "evidence_count": 1,
+          "rationale": "Standard SMTP session sequence documented in the specification."
+        },
+        {
+          "type": "invariant",
+          "description": "MAIL FROM must precede RCPT TO.",
+          "old_status": "hypothesis",
+          "new_status": "hypothesis",
+          "confidence": 0.9,
+          "evidence_count": 1,
+          "rationale": "Standard SMTP transaction state machine documented in the specification."
+        },
+        {
+          "type": "invariant",
+          "description": "RCPT TO must precede the DATA command.",
+          "old_status": "hypothesis",
+          "new_status": "hypothesis",
+          "confidence": 0.9,
+          "evidence_count": 1,
+          "rationale": "Standard SMTP transaction state machine documented in the specification."
+        },
+        {
+          "type": "invariant",
+          "description": "The server must respond with 354 to a DATA command before the client sends the message content.",
+          "old_status": "hypothesis",
+          "new_status": "hypothesis",
+          "confidence": 0.9,
+          "evidence_count": 1,
+          "rationale": "Standard SMTP response sequence for the DATA command as documented."
+        },
+        {
+          "type": "invariant",
+          "description": "EHLO/HELO.domain: Must be a valid domain name or IP literal.",
+          "old_status": "hypothesis",
+          "new_status": "hypothesis",
+          "confidence": 0.8,
+          "evidence_count": 1,
+          "rationale": "Basic syntax requirement for identification command in SMTP as documented."
+        },
+        {
+          "type": "invariant",
+          "description": "MAIL FROM.reverse-path: Must be a valid reverse-path (email address), often enclosed in <>.",
+          "old_status": "hypothesis",
+          "new_status": "hypothesis",
+          "confidence": 0.8,
+          "evidence_count": 1,
+          "rationale": "Standard syntax for the sender address field as documented."
+        },
+        {
+          "type": "invariant",
+          "description": "RCPT TO.forward-path: Must be a valid forward-path (email address), often enclosed in <>.",
+          "old_status": "hypothesis",
+          "new_status": "hypothesis",
+          "confidence": 0.8,
+          "evidence_count": 1,
+          "rationale": "Standard syntax for the recipient address field as documented."
+        }
+      ]
+    },
+    "probe": {
+      "agent": "probe",
+      "probes_executed": 0,
+      "model_updates": [],
+      "llm_tool_calls": 0,
+      "llm_plan_used": false
+    },
+    "artifacts": {
+      "protocol_schema": {
+        "schema_version": 1,
+        "project_id": 31,
+        "protocol": "SMTP",
+        "messages": {
+          "C_DATA": {
+            "template": "DATA",
+            "fields": {},
+            "preconditions": [],
+            "postconditions": [],
+            "dangerous_inputs": [
+              "unexpected extra argument",
+              "repeated command",
+              "oversized token"
+            ],
+            "observed_count": 0,
+            "confidence": 1.0
+          },
+          "C_EHLO": {
+            "template": "EHLO <domain>",
+            "fields": {},
+            "preconditions": [],
+            "postconditions": [],
+            "dangerous_inputs": [
+              "unexpected extra argument",
+              "repeated command",
+              "oversized token"
+            ],
+            "observed_count": 0,
+            "confidence": 1.0
+          },
+          "C_HELO": {
+            "template": "HELO <domain>",
+            "fields": {},
+            "preconditions": [],
+            "postconditions": [],
+            "dangerous_inputs": [
+              "unexpected extra argument",
+              "repeated command",
+              "oversized token"
+            ],
+            "observed_count": 0,
+            "confidence": 1.0
+          },
+          "C_MAIL_FROM": {
+            "template": "MAIL FROM:<reverse-path>",
+            "fields": {},
+            "preconditions": [],
+            "postconditions": [],
+            "dangerous_inputs": [
+              "unexpected extra argument",
+              "repeated command",
+              "oversized token"
+            ],
+            "observed_count": 0,
+            "confidence": 1.0
+          },
+          "C_QUIT": {
+            "template": "QUIT",
+            "fields": {},
+            "preconditions": [],
+            "postconditions": [],
+            "dangerous_inputs": [
+              "unexpected extra argument",
+              "repeated command",
+              "oversized token"
+            ],
+            "observed_count": 0,
+            "confidence": 1.0
+          },
+          "C_RCPT_TO": {
+            "template": "RCPT TO:<forward-path>",
+            "fields": {},
+            "preconditions": [],
+            "postconditions": [],
+            "dangerous_inputs": [
+              "unexpected extra argument",
+              "repeated command",
+              "oversized token"
+            ],
+            "observed_count": 0,
+            "confidence": 1.0
+          },
+          "S_BYE_221": {
+            "template": "221 <text>",
+            "fields": {},
+            "preconditions": [],
+            "postconditions": [],
+            "dangerous_inputs": [
+              "unexpected extra argument",
+              "repeated command",
+              "oversized token"
+            ],
+            "observed_count": 0,
+            "confidence": 1.0
+          },
+          "S_GREETING_220": {
+            "template": "220 <hostname> ESMTP <service_info>",
+            "fields": {},
+            "preconditions": [],
+            "postconditions": [],
+            "dangerous_inputs": [
+              "unexpected extra argument",
+              "repeated command",
+              "oversized token"
+            ],
+            "observed_count": 0,
+            "confidence": 1.0
+          },
+          "S_OK_250": {
+            "template": "250 <text>",
+            "fields": {},
+            "preconditions": [],
+            "postconditions": [],
+            "dangerous_inputs": [
+              "unexpected extra argument",
+              "repeated command",
+              "oversized token"
+            ],
+            "observed_count": 0,
+            "confidence": 1.0
+          },
+          "S_START_INPUT_354": {
+            "template": "354 <text>",
+            "fields": {},
+            "preconditions": [],
+            "postconditions": [],
+            "dangerous_inputs": [
+              "unexpected extra argument",
+              "repeated command",
+              "oversized token"
+            ],
+            "observed_count": 0,
+            "confidence": 1.0
+          }
+        },
+        "states": [],
+        "transitions": [],
+        "ordering_rules": [
+          "The server must send a 220 greeting before any client command.",
+          "The client must identify itself with HELO or EHLO before initiating a MAIL FROM transaction.",
+          "MAIL FROM must precede RCPT TO.",
+          "RCPT TO must precede the DATA command.",
+          "The server must respond with 354 to a DATA command before the client sends the message content.",
+          "At least one valid RCPT TO command must be accepted before DATA is issued."
+        ],
+        "field_constraints": [
+          "EHLO/HELO.domain: Must be a valid domain name or IP literal.",
+          "MAIL FROM.reverse-path: Must be a valid reverse-path (email address), often enclosed in <>.",
+          "RCPT TO.forward-path: Must be a valid forward-path (email address), often enclosed in <>.",
+          "DATA_CONTENT.message_data: Must terminate with a line containing only a period (CRLF.CRLF)."
+        ],
+        "dangerous_input_families": [
+          "oversized token",
+          "repeated command",
+          "unexpected extra argument"
+        ]
+      }
+    },
+    "seed_generation": {
+      "project_id": 31,
+      "generated_seeds": [],
+      "categories": [],
+      "seed_count": 0
+    },
+    "feedback": {
+      "project_id": 31,
+      "unused_message_types": [
+        "C_DATA",
+        "C_EHLO",
+        "C_HELO",
+        "C_MAIL_FROM",
+        "C_QUIT",
+        "C_RCPT_TO",
+        "S_BYE_221",
+        "S_GREETING_220",
+        "S_OK_250",
+        "S_START_INPUT_354"
+      ],
+      "isolated_states": [],
+      "weak_transitions": [],
+      "supported_ratio": 0.0,
+      "probe_to_transition_ratio": 0.0,
+      "generated_seed_count": 0,
+      "recommended_actions": [
+        "Several observed message types are not yet represented in the state machine; prioritize seeds and probes for: C_DATA, C_EHLO, C_HELO, C_MAIL_FROM, C_QUIT, C_RCPT_TO, S_BYE_221, S_GREETING_220",
+        "No probes were executed; schedule online validation for authentication, directory traversal, and rename flows."
+      ],
+      "suggested_campaign": {
+        "target": "ftp-local",
+        "seed_strategy": "state_progression_then_file_ops",
+        "num_generated_seeds": 0,
+        "focus_commands": [],
+        "duration_minutes": 30,
+        "objective": "Increase post-auth and data-channel coverage while validating weaker transitions."
+      },
+      "fuzzing_observation": {
+        "likely_stall_point": "authentication_or_post_auth_gap",
+        "explanation": "Several observed message types are not yet represented in the state machine; prioritize seeds and probes for: C_DATA, C_EHLO, C_HELO, C_MAIL_FROM, C_QUIT, C_RCPT_TO, S_BYE_221, S_GREETING_220"
+      }
+    }
+  }
+}

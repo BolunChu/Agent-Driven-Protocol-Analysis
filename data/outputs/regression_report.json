@@ -1,0 +1,234 @@
+{
+  "generated_at": "2026-04-26T13:24:25.195811",
+  "rounds": 3,
+  "protocols": [
+    "FTP",
+    "SMTP"
+  ],
+  "analyses": {
+    "FTP": {
+      "protocol": "FTP",
+      "rounds_run": 3,
+      "fallback_spikes": 0,
+      "stability": {
+        "message_types": {
+          "min": 39,
+          "max": 39,
+          "mean": 39,
+          "stdev": 0.0,
+          "stable": true
+        },
+        "states": {
+          "min": 8,
+          "max": 8,
+          "mean": 8,
+          "stdev": 0.0,
+          "stable": true
+        },
+        "transitions": {
+          "min": 15,
+          "max": 20,
+          "mean": 17.67,
+          "stdev": 2.517,
+          "stable": false
+        },
+        "evidence_records": {
+          "min": 87,
+          "max": 94,
+          "mean": 90.67,
+          "stdev": 3.512,
+          "stable": true
+        },
+        "transition_supported": {
+          "min": 0,
+          "max": 0,
+          "mean": 0,
+          "stdev": 0.0,
+          "stable": true
+        },
+        "transition_hypothesis": {
+          "min": 15,
+          "max": 20,
+          "mean": 17.67,
+          "stdev": 2.517,
+          "stable": false
+        }
+      }
+    },
+    "SMTP": {
+      "protocol": "SMTP",
+      "rounds_run": 3,
+      "fallback_spikes": 0,
+      "stability": {
+        "message_types": {
+          "min": 12,
+          "max": 12,
+          "mean": 12,
+          "stdev": 0.0,
+          "stable": true
+        },
+        "states": {
+          "min": 7,
+          "max": 10,
+          "mean": 8,
+          "stdev": 1.732,
+          "stable": false
+        },
+        "transitions": {
+          "min": 14,
+          "max": 17,
+          "mean": 15,
+          "stdev": 1.732,
+          "stable": false
+        },
+        "evidence_records": {
+          "min": 55,
+          "max": 59,
+          "mean": 56.33,
+          "stdev": 2.309,
+          "stable": true
+        },
+        "transition_supported": {
+          "min": 0,
+          "max": 0,
+          "mean": 0,
+          "stdev": 0.0,
+          "stable": true
+        },
+        "transition_hypothesis": {
+          "min": 14,
+          "max": 17,
+          "mean": 15,
+          "stdev": 1.732,
+          "stable": false
+        }
+      }
+    }
+  },
+  "per_round": {
+    "FTP": [
+      {
+        "protocol": "FTP",
+        "round": 1,
+        "project_id": 39,
+        "message_types": 39,
+        "states": 8,
+        "transitions": 18,
+        "evidence_records": 87,
+        "probe_runs": 3,
+        "spec_fallback": false,
+        "trace_fallback": false,
+        "spec_llm_calls": 1,
+        "trace_llm_calls": 1,
+        "probe_llm_calls": 1,
+        "llm_evidence": 87,
+        "probe_evidence": 0,
+        "transition_supported": 0,
+        "transition_hypothesis": 18,
+        "transition_disputed": 0
+      },
+      {
+        "protocol": "FTP",
+        "round": 2,
+        "project_id": 40,
+        "message_types": 39,
+        "states": 8,
+        "transitions": 15,
+        "evidence_records": 91,
+        "probe_runs": 3,
+        "spec_fallback": false,
+        "trace_fallback": false,
+        "spec_llm_calls": 1,
+        "trace_llm_calls": 1,
+        "probe_llm_calls": 1,
+        "llm_evidence": 91,
+        "probe_evidence": 0,
+        "transition_supported": 0,
+        "transition_hypothesis": 15,
+        "transition_disputed": 0
+      },
+      {
+        "protocol": "FTP",
+        "round": 3,
+        "project_id": 41,
+        "message_types": 39,
+        "states": 8,
+        "transitions": 20,
+        "evidence_records": 94,
+        "probe_runs": 3,
+        "spec_fallback": false,
+        "trace_fallback": false,
+        "spec_llm_calls": 1,
+        "trace_llm_calls": 1,
+        "probe_llm_calls": 1,
+        "llm_evidence": 94,
+        "probe_evidence": 0,
+        "transition_supported": 0,
+        "transition_hypothesis": 20,
+        "transition_disputed": 0
+      }
+    ],
+    "SMTP": [
+      {
+        "protocol": "SMTP",
+        "round": 1,
+        "project_id": 42,
+        "message_types": 12,
+        "states": 10,
+        "transitions": 14,
+        "evidence_records": 59,
+        "probe_runs": 3,
+        "spec_fallback": false,
+        "trace_fallback": false,
+        "spec_llm_calls": 1,
+        "trace_llm_calls": 1,
+        "probe_llm_calls": 1,
+        "llm_evidence": 59,
+        "probe_evidence": 0,
+        "transition_supported": 0,
+        "transition_hypothesis": 14,
+        "transition_disputed": 0
+      },
+      {
+        "protocol": "SMTP",
+        "round": 2,
+        "project_id": 43,
+        "message_types": 12,
+        "states": 7,
+        "transitions": 14,
+        "evidence_records": 55,
+        "probe_runs": 3,
+        "spec_fallback": false,
+        "trace_fallback": false,
+        "spec_llm_calls": 1,
+        "trace_llm_calls": 1,
+        "probe_llm_calls": 1,
+        "llm_evidence": 55,
+        "probe_evidence": 0,
+        "transition_supported": 0,
+        "transition_hypothesis": 14,
+        "transition_disputed": 0
+      },
+      {
+        "protocol": "SMTP",
+        "round": 3,
+        "project_id": 44,
+        "message_types": 12,
+        "states": 7,
+        "transitions": 17,
+        "evidence_records": 55,
+        "probe_runs": 2,
+        "spec_fallback": false,
+        "trace_fallback": false,
+        "spec_llm_calls": 1,
+        "trace_llm_calls": 1,
+        "probe_llm_calls": 1,
+        "llm_evidence": 55,
+        "probe_evidence": 0,
+        "transition_supported": 0,
+        "transition_hypothesis": 17,
+        "transition_disputed": 0
+      }
+    ]
+  }
+}

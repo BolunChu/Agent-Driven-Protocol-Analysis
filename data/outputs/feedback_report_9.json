@@ -1,0 +1,110 @@
+{
+  "project_id": 9,
+  "unused_message_types": [
+    "ACCT",
+    "CAPI",
+    "CDUP",
+    "DELE",
+    "FEAT",
+    "HELP",
+    "MKD",
+    "MODE",
+    "NOOP",
+    "PRUE",
+    "RMD",
+    "SMNT",
+    "STRU",
+    "SYST",
+    "TYPE",
+    "XCUP",
+    "XCWD",
+    "XMKD",
+    "XPWD",
+    "XRMD"
+  ],
+  "isolated_states": [
+    {
+      "state": "RESETTING",
+      "incoming": 0,
+      "outgoing": 0
+    }
+  ],
+  "weak_transitions": [
+    {
+      "description": "AUTHENTICATED -> INIT via REIN",
+      "status": "hypothesis",
+      "confidence": 0.8
+    },
+    {
+      "description": "AUTHENTICATED -> AUTHENTICATED via MLST",
+      "status": "hypothesis",
+      "confidence": 0.8
+    },
+    {
+      "description": "AUTHENTICATED -> AUTHENTICATED via SIZE",
+      "status": "hypothesis",
+      "confidence": 0.8
+    },
+    {
+      "description": "AUTHENTICATED -> AUTHENTICATED via STAT",
+      "status": "hypothesis",
+      "confidence": 0.8
+    },
+    {
+      "description": "AUTHENTICATED -> DATA_TRANSFER via MLSD",
+      "status": "hypothesis",
+      "confidence": 0.8
+    },
+    {
+      "description": "AUTHENTICATED -> DATA_TRANSFER via STOR",
+      "status": "hypothesis",
+      "confidence": 0.8
+    },
+    {
+      "description": "AUTHENTICATED -> DATA_TRANSFER via APPE",
+      "status": "hypothesis",
+      "confidence": 0.8
+    },
+    {
+      "description": "DATA_CHANNEL_READY -> DATA_TRANSFER via NLST",
+      "status": "hypothesis",
+      "confidence": 0.8
+    },
+    {
+      "description": "DATA_CHANNEL_READY -> DATA_TRANSFER via MLSD",
+      "status": "hypothesis",
+      "confidence": 0.8
+    },
+    {
+      "description": "DATA_CHANNEL_READY -> DATA_TRANSFER via APPE",
+      "status": "hypothesis",
+      "confidence": 0.8
+    }
+  ],
+  "supported_ratio": 0.062,
+  "probe_to_transition_ratio": 0.094,
+  "generated_seed_count": 14,
+  "recommended_actions": [
+    "Several observed message types are not yet represented in the state machine; prioritize seeds and probes for: ACCT, CAPI, CDUP, DELE, FEAT, HELP, MKD, MODE",
+    "Some inferred states are weakly connected in the current model; add directed seeds for: RESETTING"
+  ],
+  "suggested_campaign": {
+    "target": "ftp-local",
+    "seed_strategy": "state_progression_then_file_ops",
+    "num_generated_seeds": 14,
+    "focus_commands": [
+      "REIN",
+      "MLST",
+      "SIZE",
+      "STAT",
+      "MLSD",
+      "STOR"
+    ],
+    "duration_minutes": 30,
+    "objective": "Increase post-auth and data-channel coverage while validating weaker transitions."
+  },
+  "fuzzing_observation": {
+    "likely_stall_point": "authentication_or_post_auth_gap",
+    "explanation": "Several observed message types are not yet represented in the state machine; prioritize seeds and probes for: ACCT, CAPI, CDUP, DELE, FEAT, HELP, MKD, MODE"
+  }
+}
