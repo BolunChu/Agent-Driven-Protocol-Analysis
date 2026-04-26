@@ -115,8 +115,12 @@ def infer_candidate_states(input_sessions: list[list[dict]]) -> dict:
                 if "CLOSED" not in seen_patterns:
                     states.append({"name": "CLOSED", "description": "Session terminated"})
                     seen_patterns.add("CLOSED")
+            if mt in ("PASV", "EPSV", "PORT", "EPRT") and code.startswith(("2", "3")):
+                if "DATA_CHANNEL_READY" not in seen_patterns:
+                    states.append({"name": "DATA_CHANNEL_READY", "description": "Data connection parameters negotiated; waiting for a transfer command"})
+                    seen_patterns.add("DATA_CHANNEL_READY")
             # Data transfer state
-            if mt in ("LIST", "RETR", "STOR", "NLST", "MLST", "MLSD", "APPE"):
+            if mt in ("LIST", "RETR", "STOR", "NLST", "MLSD", "APPE"):
                 if "DATA_TRANSFER" not in seen_patterns:
                     states.append({"name": "DATA_TRANSFER", "description": "Data transfer in progress"})
                     seen_patterns.add("DATA_TRANSFER")
@@ -159,12 +163,52 @@ def propose_transitions(states: list[dict], messages: list[dict]) -> dict:
     ftp_rules = [
         ("INIT", "AUTH_PENDING", "USER", 0.8),
         ("AUTH_PENDING", "AUTHENTICATED", "PASS", 0.75),
+        ("AUTHENTICATED", "AUTHENTICATED", "ACCT", 0.62),
         ("AUTHENTICATED", "AUTHENTICATED", "PWD", 0.7),
         ("AUTHENTICATED", "AUTHENTICATED", "CWD", 0.7),
+        ("AUTHENTICATED", "AUTHENTICATED", "CDUP", 0.68),
+        ("AUTHENTICATED", "AUTHENTICATED", "XCWD", 0.66),
+        ("AUTHENTICATED", "AUTHENTICATED", "XPWD", 0.66),
+        ("AUTHENTICATED", "AUTHENTICATED", "XCUP", 0.66),
+        ("AUTHENTICATED", "AUTHENTICATED", "MKD", 0.68),
+        ("AUTHENTICATED", "AUTHENTICATED", "XMKD", 0.66),
+        ("AUTHENTICATED", "AUTHENTICATED", "RMD", 0.68),
+        ("AUTHENTICATED", "AUTHENTICATED", "XRMD", 0.66),
+        ("AUTHENTICATED", "AUTHENTICATED", "DELE", 0.68),
+        ("AUTHENTICATED", "AUTHENTICATED", "TYPE", 0.68),
+        ("AUTHENTICATED", "AUTHENTICATED", "MODE", 0.64),
+        ("AUTHENTICATED", "AUTHENTICATED", "STRU", 0.64),
+        ("AUTHENTICATED", "AUTHENTICATED", "SMNT", 0.58),
+        ("AUTHENTICATED", "AUTHENTICATED", "SYST", 0.66),
+        ("AUTHENTICATED", "AUTHENTICATED", "FEAT", 0.66),
+        ("AUTHENTICATED", "AUTHENTICATED", "HELP", 0.64),
+        ("AUTHENTICATED", "AUTHENTICATED", "NOOP", 0.66),
+        ("AUTHENTICATED", "AUTHENTICATED", "MLST", 0.72),
+        ("AUTHENTICATED", "AUTHENTICATED", "SIZE", 0.72),
+        ("AUTHENTICATED", "AUTHENTICATED", "STAT", 0.7),
+        ("AUTHENTICATED", "RENAME_PENDING", "RNFR", 0.76),
+        ("RENAME_PENDING", "AUTHENTICATED", "RNTO", 0.76),
+        ("AUTHENTICATED", "RESETTING", "REIN", 0.74),
+        ("RESETTING", "AUTH_PENDING", "USER", 0.66),
+        ("AUTHENTICATED", "DATA_CHANNEL_READY", "PASV", 0.78),
+        ("AUTHENTICATED", "DATA_CHANNEL_READY", "EPSV", 0.78),
+        ("AUTHENTICATED", "DATA_CHANNEL_READY", "PORT", 0.74),
+        ("AUTHENTICATED", "DATA_CHANNEL_READY", "EPRT", 0.74),
         ("AUTHENTICATED", "DATA_TRANSFER", "LIST", 0.7),
+        ("AUTHENTICATED", "DATA_TRANSFER", "MLSD", 0.68),
         ("AUTHENTICATED", "DATA_TRANSFER", "RETR", 0.65),
         ("AUTHENTICATED", "DATA_TRANSFER", "STOR", 0.65),
+        ("AUTHENTICATED", "DATA_TRANSFER", "APPE", 0.65),
+        ("DATA_CHANNEL_READY", "DATA_TRANSFER", "LIST", 0.82),
+        ("DATA_CHANNEL_READY", "DATA_TRANSFER", "NLST", 0.8),
+        ("DATA_CHANNEL_READY", "DATA_TRANSFER", "MLSD", 0.82),
+        ("DATA_CHANNEL_READY", "DATA_TRANSFER", "RETR", 0.8),
+        ("DATA_CHANNEL_READY", "DATA_TRANSFER", "STOR", 0.8),
+        ("DATA_CHANNEL_READY", "DATA_TRANSFER", "APPE", 0.78),
         ("DATA_TRANSFER", "AUTHENTICATED", "LIST", 0.6),  # after transfer completes
+        ("DATA_TRANSFER", "AUTHENTICATED", "MLSD", 0.6),
+        ("DATA_TRANSFER", "AUTHENTICATED", "RETR", 0.58),
+        ("DATA_TRANSFER", "AUTHENTICATED", "STOR", 0.58),
         ("AUTHENTICATED", "CLOSED", "QUIT", 0.9),
         ("INIT", "CLOSED", "QUIT", 0.6),
     ]

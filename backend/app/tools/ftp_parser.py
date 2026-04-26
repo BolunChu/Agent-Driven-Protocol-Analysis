@@ -11,7 +11,7 @@ from typing import Any
 
 # FTP command patterns
 FTP_COMMAND_RE = re.compile(
-    r'^(?P<command>[A-Z]{3,4})\s*(?P<args>.*)$', re.IGNORECASE
+    r'^(?P<command>[A-Z]{3,4})(?:\s+(?P<args>.*))?$', re.IGNORECASE
 )
 FTP_RESPONSE_RE = re.compile(
     r'^(?P<code>\d{3})[\s-](?P<text>.*)$'
@@ -102,7 +102,7 @@ def parse_ftp_command(line: str) -> dict | None:
         return None
 
     cmd = m.group("command").upper()
-    args = m.group("args").strip()
+    args = (m.group("args") or "").strip()
     extractor = FIELD_EXTRACTORS.get(cmd, lambda a: {"args": a} if a else {})
     fields = extractor(args)
 

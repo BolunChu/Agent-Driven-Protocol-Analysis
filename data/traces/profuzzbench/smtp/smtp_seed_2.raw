@@ -1,0 +1,21 @@
+EHLO client.test
+250 smtp.local
+AUTH LOGIN
+334 VXNlcm5hbWU6
+dXNlcg==
+334 UGFzc3dvcmQ6
+cGFzcw==
+235 Authentication successful
+MAIL FROM:<auth@example.com>
+250 Ok
+RCPT TO:<dest@example.com>
+250 Ok
+DATA
+354 Go ahead
+Subject: Auth Test
+.
+250 Ok: queued
+RSET
+250 Ok
+QUIT
+221 Bye

@@ -86,19 +86,18 @@ def _llm_review_claims(transition_claims: list[dict], invariant_claims: list[dic
         user_message += f"  heuristic_confidence: {claim['heuristic_confidence']}\n"
         user_message += f"  evidence:\n{claim['evidence_text']}\n"
 
-    try:
-        tool_calls = call_with_tools(
-            system_prompt=VERIFY_SYSTEM_PROMPT,
-            user_message=user_message,
-            tools=VERIFY_TOOLS,
-            max_iterations=1,
-        )
-    except Exception as exc:
-        logger.warning("Verifier LLM review failed, falling back to heuristic scoring: %s", exc)
-        return {"transition_reviews": [], "invariant_reviews": []}
+    tool_calls = call_with_tools(
+        system_prompt=VERIFY_SYSTEM_PROMPT,
+        user_message=user_message,
+        tools=VERIFY_TOOLS,
+        max_iterations=1,
+    )
     if tool_calls and tool_calls[0]["tool"] == "record_verification_review":
         return tool_calls[0]["args"]
-    return {"transition_reviews": [], "invariant_reviews": []}
+    raise RuntimeError(
+        f"Verifier LLM returned tool calls but none matched 'record_verification_review': "
+        f"{[t['tool'] for t in tool_calls]}"
+    )
 
 
 def _merge_status(heuristic_status: str, heuristic_confidence: float,
@@ -107,9 +106,26 @@ def _merge_status(heuristic_status: str, heuristic_confidence: float,
         return heuristic_status, heuristic_confidence
     if heuristic_status == "disputed" or llm_status == "disputed":
         return "disputed", round(min(heuristic_confidence, llm_confidence), 3)
+    if heuristic_status == "supported" and llm_status == "supported":
+        return "supported", round((heuristic_confidence + llm_confidence) / 2, 3)
     if heuristic_status == "supported" or llm_status == "supported":
-        return "supported", round(max(heuristic_confidence, llm_confidence), 3)
+        return "hypothesis", round(max(heuristic_confidence, llm_confidence), 3)
     return "hypothesis", round(max(heuristic_confidence, llm_confidence), 3)
+
+
+def _apply_evidence_guard(status: str, confidence: float, evidence_records: list[Evidence]) -> tuple[str, float]:
+    if status != "supported":
+        return status, confidence
+
+    trace_count = sum(1 for evidence in evidence_records if evidence.source_type == "trace")
+    probe_count = sum(1 for evidence in evidence_records if evidence.source_type == "probe")
+    code_count = sum(1 for evidence in evidence_records if evidence.source_type == "code")
+
+    if probe_count >= 1:
+        return status, confidence
+    if trace_count >= 2 or (trace_count >= 1 and code_count >= 1):
+        return status, min(confidence, 0.9)
+    return "hypothesis", min(confidence, 0.78)
 
 
 def run_verifier(project_id: int, session: Session) -> dict:
@@ -244,6 +260,7 @@ def run_verifier(project_id: int, session: Session) -> dict:
             review.get("suggested_status"),
             review.get("confidence"),
         )
+        new_status, new_confidence = _apply_evidence_guard(new_status, new_confidence, evidence_records)
 
         if old_status != new_status or abs(trans.confidence - new_confidence) > 0.01:
             trans.status = new_status
@@ -270,6 +287,7 @@ def run_verifier(project_id: int, session: Session) -> dict:
         inv = context["inv"]
         claim = context["claim"]
         scored = context["scored"]
+        evidence_records = context["evidence_records"]
         evidence_list = context["evidence_list"]
         review = invariant_review_map.get(claim["description"], {})
         old_status = inv.status
@@ -279,6 +297,7 @@ def run_verifier(project_id: int, session: Session) -> dict:
             review.get("suggested_status"),
             review.get("confidence"),
         )
+        new_status, new_confidence = _apply_evidence_guard(new_status, new_confidence, evidence_records)
 
         if old_status != new_status or abs(inv.confidence - new_confidence) > 0.01:
             inv.status = new_status

@@ -10,13 +10,20 @@ import logging
 from sqlmodel import Session, select
 
 from ..models.domain import (
-    SessionTrace, ProtocolState, Transition, MessageType, Evidence,
+    SessionTrace, ProtocolState, Transition, MessageType, Evidence, ProtocolProject,
 )
-from ..tools.protocol_tools import extract_message_types, infer_candidate_states
-from ..tools.ftp_parser import parse_ftp_session, parse_ftp_session_pairs
+from ..protocols.registry import get_protocol_adapter
+from ..tools.protocol_tools import extract_message_types
 from ..core.llm_client import call_with_tools
 
 logger = logging.getLogger(__name__)
+
+
+def _is_valid_message_type_name(name: str) -> bool:
+    candidate = (name or "").strip().upper()
+    if not candidate or candidate.startswith("RESP_"):
+        return False
+    return candidate.isalpha() and 3 <= len(candidate) <= 4
 
 # ---------------------------------------------------------------------------
 # Tool schemas
@@ -27,10 +34,57 @@ TRACE_TOOLS = [
         "type": "function",
         "function": {
             "name": "record_trace_analysis",
-            "description": "Record the complete trace-derived protocol analysis in a single call.",
+            "description": "Record structured observations and the complete trace-derived protocol analysis in a single call.",
             "parameters": {
                 "type": "object",
                 "properties": {
+                    "observations": {
+                        "type": "object",
+                        "properties": {
+                            "state_hypotheses": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "name": {"type": "string"},
+                                        "evidence": {"type": "string"},
+                                        "confidence": {"type": "number"},
+                                    },
+                                    "required": ["name", "evidence", "confidence"],
+                                },
+                            },
+                            "message_type_observations": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "name": {"type": "string"},
+                                        "observed_count": {"type": "integer"},
+                                        "common_response_codes": {
+                                            "type": "array",
+                                            "items": {"type": "string"},
+                                        },
+                                        "typical_position": {"type": "string"},
+                                        "confidence": {"type": "number"},
+                                    },
+                                    "required": ["name", "observed_count", "confidence"],
+                                },
+                            },
+                            "sequence_patterns": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "pattern": {"type": "string"},
+                                        "interpretation": {"type": "string"},
+                                        "confidence": {"type": "number"},
+                                    },
+                                    "required": ["pattern", "interpretation", "confidence"],
+                                },
+                            },
+                        },
+                        "required": ["state_hypotheses", "message_type_observations", "sequence_patterns"],
+                    },
                     "states": {
                         "type": "array",
                         "items": {
@@ -76,7 +130,7 @@ TRACE_TOOLS = [
                         },
                     },
                 },
-                "required": ["states", "transitions", "observed_message_types"],
+                "required": ["observations", "states", "transitions", "observed_message_types"],
             },
         },
     },
@@ -85,17 +139,32 @@ TRACE_TOOLS = [
 TRACE_SYSTEM_PROMPT = """You are an expert protocol analyst. Analyze the provided FTP session traces to recover the protocol state machine.
 
 Your goal:
-1. Identify distinct protocol states (e.g., INIT before login, AUTH_PENDING during authentication, AUTHENTICATED after successful login, DATA_TRANSFER during file operations, CLOSED after QUIT)
+1. Identify distinct protocol states (e.g., INIT before login, AUTH_PENDING during authentication, AUTHENTICATED after successful login, DATA_CHANNEL_READY after PASV/EPSV/PORT/EPRT negotiation, DATA_TRANSFER during file operations, CLOSED after QUIT)
 2. Identify state transitions triggered by specific FTP commands
 3. Record observed message types with frequency information
 
 Call record_trace_analysis exactly once.
-Populate states, transitions, and observed_message_types comprehensively.
+Within that single tool call, use observations to record trace-derived evidence and then provide final states/transitions.
+Populate observations, states, transitions, and observed_message_types comprehensively.
 - Do not use server response pseudo-types such as RESP_220 or RESP_226 as message_type values in transitions
 - Use response_codes to describe server outcomes while keeping the transition trigger as the client command
 - Prefer states and transitions that are strongly grounded in repeated trace patterns, especially ProFuzzBench-observed commands
+- Prefer modeling PASV/EPSV/PORT/EPRT as data-channel preparation, and model LIST/NLST/MLSD/RETR/STOR/APPE as transfer-triggering commands
+- Treat MLST, SIZE, STAT, PWD, and CWD as metadata or navigation operations that usually keep the session authenticated rather than entering data transfer
+- Treat REIN as entering an intermediate RESETTING / reinitialization state first; avoid modeling REIN as a direct AUTHENTICATED -> INIT jump when RESETTING is available
 
 Focus on patterns: what command sequences lead to state changes? What response codes indicate successful vs failed transitions?"""
+
+
+def _normalize_transition_shape(from_state: str, to_state: str, message_type: str) -> tuple[str, str, str]:
+    from_s = from_state.strip().upper()
+    to_s = to_state.strip().upper()
+    msg = message_type.strip().upper()
+
+    if msg == "REIN" and from_s == "AUTHENTICATED" and to_s == "INIT":
+        to_s = "RESETTING"
+
+    return from_s, to_s, msg
 
 
 def _format_sessions_for_llm(all_sessions: list[list[dict]]) -> str:
@@ -115,6 +184,207 @@ def _format_sessions_for_llm(all_sessions: list[list[dict]]) -> str:
     return "\n".join(lines)
 
 
+def _augment_trace_model(project_id: int, session: Session, adapter, heuristic_states: list[dict],
+                         mt_result: dict, created_states: list[str], created_trans: list[str],
+                         min_transition_count: int, priority_messages: list[str]) -> None:
+    for state_info in heuristic_states:
+        name = state_info.get("name", "").strip().upper()
+        if not name:
+            continue
+        existing = session.exec(
+            select(ProtocolState).where(
+                ProtocolState.project_id == project_id,
+                ProtocolState.name == name,
+            )
+        ).first()
+        if not existing:
+            state = ProtocolState(
+                project_id=project_id,
+                name=name,
+                description=state_info.get("description", ""),
+                confidence=0.78,
+            )
+            session.add(state)
+            session.commit()
+            session.refresh(state)
+            ev = Evidence(
+                project_id=project_id,
+                claim_type="state",
+                claim_id=state.id,
+                source_type="trace",
+                source_ref="heuristic trace augmentation",
+                snippet=state_info.get("description", name)[:500],
+                score=0.78,
+            )
+            session.add(ev)
+            created_states.append(name)
+
+    existing_transitions = session.exec(
+        select(Transition).where(Transition.project_id == project_id)
+    ).all()
+    current_transition_count = len(existing_transitions)
+    if current_transition_count >= min_transition_count:
+        return
+    existing_message_types = {transition.message_type for transition in existing_transitions}
+    priority_rank = {msg: i for i, msg in enumerate(priority_messages)}
+
+    heuristic_transitions = adapter.propose_transitions(heuristic_states, mt_result.get("message_types", []))
+    prioritized_candidates: list[tuple[int, str, str, str, float]] = []
+    for args in heuristic_transitions.get("transitions", []):
+        from_s, to_s, msg = adapter.normalize_transition(
+            args.get("from_state", ""),
+            args.get("to_state", ""),
+            args.get("message_type", ""),
+        )
+        if not (from_s and to_s and msg):
+            continue
+        if msg in existing_message_types:
+            continue
+        rank = priority_rank.get(msg, len(priority_rank) + 1)
+        prioritized_candidates.append(
+            (rank, from_s, to_s, msg, float(args.get("confidence", 0.72)))
+        )
+
+    prioritized_candidates.sort(key=lambda item: item[0])
+
+    for _, from_s, to_s, msg, conf in prioritized_candidates:
+        if current_transition_count >= min_transition_count:
+            break
+
+        existing = session.exec(
+            select(Transition).where(
+                Transition.project_id == project_id,
+                Transition.from_state == from_s,
+                Transition.to_state == to_s,
+                Transition.message_type == msg,
+            )
+        ).first()
+        if existing:
+            continue
+
+        trans = Transition(
+            project_id=project_id,
+            from_state=from_s,
+            to_state=to_s,
+            message_type=msg,
+            confidence=conf,
+            status="hypothesis",
+        )
+        session.add(trans)
+        session.commit()
+        session.refresh(trans)
+        ev = Evidence(
+            project_id=project_id,
+            claim_type="transition",
+            claim_id=trans.id,
+            source_type="trace",
+            source_ref="heuristic trace augmentation",
+            snippet=f"{from_s} -> {to_s} via {msg}",
+            score=conf,
+        )
+        session.add(ev)
+        created_trans.append(f"{from_s} → {to_s} via {msg}")
+        existing_message_types.add(msg)
+        current_transition_count += 1
+
+
+def _store_structured_observations(project_id: int, session: Session, observation_payload: dict,
+                                   created_mt: list[str], created_states: list[str]) -> dict:
+    observation_summary = {
+        "message_types": 0,
+        "states": 0,
+        "sequence_patterns": len(observation_payload.get("sequence_patterns", [])),
+    }
+
+    for args in observation_payload.get("message_type_observations", []):
+        name = args.get("name", "").strip().upper()
+        if not _is_valid_message_type_name(name):
+            continue
+        existing = session.exec(
+            select(MessageType).where(
+                MessageType.project_id == project_id,
+                MessageType.name == name,
+            )
+        ).first()
+        if existing:
+            existing.confidence = max(existing.confidence, float(args.get("confidence", 0.6)))
+            session.add(existing)
+            claim_id = existing.id
+        else:
+            mt = MessageType(
+                project_id=project_id,
+                name=name,
+                template="",
+                fields_json="{}",
+                confidence=float(args.get("confidence", 0.6)),
+            )
+            session.add(mt)
+            session.commit()
+            session.refresh(mt)
+            claim_id = mt.id
+            created_mt.append(name)
+
+        snippet = f"{name} observed ~{args.get('observed_count', '?')} times"
+        response_codes = args.get("common_response_codes", [])
+        if response_codes:
+            snippet += f"; common responses: {', '.join(response_codes)}"
+        if args.get("typical_position"):
+            snippet += f"; typical position: {args.get('typical_position')}"
+        ev = Evidence(
+            project_id=project_id,
+            claim_type="message_type",
+            claim_id=claim_id,
+            source_type="trace",
+            source_ref="LLM Trace Agent structured observation",
+            snippet=snippet[:500],
+            score=float(args.get("confidence", 0.6)),
+        )
+        session.add(ev)
+        observation_summary["message_types"] += 1
+
+    for args in observation_payload.get("state_hypotheses", []):
+        name = args.get("name", "").strip().upper()
+        if not name:
+            continue
+        existing = session.exec(
+            select(ProtocolState).where(
+                ProtocolState.project_id == project_id,
+                ProtocolState.name == name,
+            )
+        ).first()
+        if existing:
+            existing.confidence = max(existing.confidence, float(args.get("confidence", 0.65)))
+            session.add(existing)
+            claim_id = existing.id
+        else:
+            state = ProtocolState(
+                project_id=project_id,
+                name=name,
+                description="",
+                confidence=float(args.get("confidence", 0.65)),
+            )
+            session.add(state)
+            session.commit()
+            session.refresh(state)
+            claim_id = state.id
+            created_states.append(name)
+
+        ev = Evidence(
+            project_id=project_id,
+            claim_type="state",
+            claim_id=claim_id,
+            source_type="trace",
+            source_ref="LLM Trace Agent structured observation",
+            snippet=args.get("evidence", name)[:500],
+            score=float(args.get("confidence", 0.65)),
+        )
+        session.add(ev)
+        observation_summary["states"] += 1
+
+    session.commit()
+    return observation_summary
+
+
 def run_trace_agent(project_id: int, session: Session) -> dict:
     """Run the LLM-powered Trace Agent.
 
@@ -123,6 +393,9 @@ def run_trace_agent(project_id: int, session: Session) -> dict:
     3. Call LLM to infer states and transitions
     4. Store results with evidence
     """
+    project = session.get(ProtocolProject, project_id)
+    adapter = get_protocol_adapter(project.protocol_name if project else "FTP")
+
     traces = session.exec(
         select(SessionTrace).where(
             SessionTrace.project_id == project_id,
@@ -134,9 +407,7 @@ def run_trace_agent(project_id: int, session: Session) -> dict:
     all_sessions: list[list[dict]] = []
 
     for trace in traces:
-        events = parse_ftp_session(trace.raw_content)
-        if not events:
-            events = parse_ftp_session_pairs(trace.raw_content)
+        events = adapter.parse_trace(trace.raw_content)
         if events:
             all_events.extend(events)
             all_sessions.append(events)
@@ -188,36 +459,12 @@ def run_trace_agent(project_id: int, session: Session) -> dict:
     session.commit()
 
     # LLM call for state/transition inference
-    sessions_text = _format_sessions_for_llm(all_sessions)
-    mt_freq = "\n".join(
-        f"  {m['name']}: {m['count']} occurrences"
-        for m in mt_result.get("message_types", [])
-        if not m["name"].startswith("RESP_")
-    )
-    heuristic_states = infer_candidate_states(all_sessions).get("states", [])
-    heuristic_state_text = "\n".join(
-        f"  - {s['name']}: {s['description']}" for s in heuristic_states
-    ) or "  (none)"
-
-    user_message = f"""## FTP Session Trace Data
-
-Total sessions: {len(all_sessions)}
-Total events: {len(all_events)}
-
-### Message Type Frequency
-{mt_freq}
-
-### Heuristic Candidate States
-{heuristic_state_text}
-
-### Session Command/Response Sequences
-{sessions_text}
-
-Analyze these traces and record all protocol states and transitions you can identify."""
+    heuristic_states = adapter.infer_candidate_states(all_sessions).get("states", [])
+    user_message = adapter.build_trace_user_message(all_sessions, all_events, mt_result, heuristic_states)
 
     logger.info("Trace Agent: calling LLM for project %d (%d sessions)", project_id, len(all_sessions))
     tool_calls = call_with_tools(
-        system_prompt=TRACE_SYSTEM_PROMPT,
+        system_prompt=adapter.trace_system_prompt(),
         user_message=user_message,
         tools=TRACE_TOOLS,
         max_iterations=1,
@@ -227,10 +474,26 @@ Analyze these traces and record all protocol states and transitions you can iden
     created_states: list[str] = []
     created_trans: list[str] = []
     fallback_used = False
+    observation_payload = {}
     payload = {}
 
-    if tool_calls and tool_calls[0]["tool"] == "record_trace_analysis":
-        payload = tool_calls[0]["args"]
+    for tool_call in tool_calls:
+        if tool_call["tool"] == "record_trace_analysis":
+            payload = tool_call["args"]
+            obs = payload.get("observations", {})
+            if isinstance(obs, dict):
+                observation_payload = obs
+        elif tool_call["tool"] == "record_trace_observations":
+            # Backward compatibility for older outputs.
+            observation_payload = tool_call["args"]
+
+    observation_summary = _store_structured_observations(
+        project_id,
+        session,
+        observation_payload,
+        created_mt,
+        created_states,
+    )
 
     for args in payload.get("states", []):
         name = args.get("name", "").strip().upper()
@@ -257,7 +520,7 @@ Analyze these traces and record all protocol states and transitions you can iden
                 claim_type="state",
                 claim_id=state.id,
                 source_type="trace",
-                source_ref="LLM Trace Agent (Gemini function calling)",
+                source_ref="LLM Trace Agent final analysis",
                 snippet=args.get("evidence", args.get("description", name))[:500],
                 score=float(args.get("confidence", 0.7)),
             )
@@ -265,10 +528,12 @@ Analyze these traces and record all protocol states and transitions you can iden
             created_states.append(name)
 
     for args in payload.get("transitions", []):
-        from_s = args.get("from_state", "").strip().upper()
-        to_s = args.get("to_state", "").strip().upper()
-        msg = args.get("message_type", "").strip().upper()
-        if not (from_s and to_s and msg) or msg.startswith("RESP_"):
+        from_s, to_s, msg = adapter.normalize_transition(
+            args.get("from_state", ""),
+            args.get("to_state", ""),
+            args.get("message_type", ""),
+        )
+        if not (from_s and to_s and msg) or msg.startswith("RESP_") or not _is_valid_message_type_name(msg):
             continue
         existing = session.exec(
             select(Transition).where(
@@ -300,7 +565,7 @@ Analyze these traces and record all protocol states and transitions you can iden
                 claim_type="transition",
                 claim_id=trans.id,
                 source_type="trace",
-                source_ref="LLM Trace Agent (Gemini function calling)",
+                source_ref="LLM Trace Agent final analysis",
                 snippet=snippet[:500],
                 score=float(args.get("confidence", 0.7)),
             )
@@ -309,7 +574,7 @@ Analyze these traces and record all protocol states and transitions you can iden
 
     for args in payload.get("observed_message_types", []):
         name = args.get("name", "").strip().upper()
-        if name and not name.startswith("RESP_"):
+        if _is_valid_message_type_name(name):
             existing = session.exec(
                 select(MessageType).where(
                     MessageType.project_id == project_id,
@@ -336,17 +601,23 @@ Analyze these traces and record all protocol states and transitions you can iden
                     claim_type="message_type",
                     claim_id=mt.id,
                     source_type="trace",
-                    source_ref="LLM Trace Agent observation",
+                    source_ref="LLM Trace Agent final analysis",
                     snippet=f"{name} seen ~{args.get('observed_count', '?')} times",
                     score=float(args.get("confidence", 0.6)),
                 )
                 session.add(ev)
                 created_mt.append(name)
 
-    if not payload:
-        logger.warning("Trace Agent: LLM returned no tool calls, using rule-based fallback")
-        fallback_used = True
-        _apply_state_fallback(project_id, session, created_states, created_trans)
+    # Heuristic augmentation disabled — agent-only mode
+    # (was: if should_augment: _augment_trace_model(...))
+
+    if not payload and not observation_payload:
+        raise RuntimeError(
+            f"Trace Agent: LLM returned no tool calls for project {project_id} "
+            "after all retries — aborting without fallback"
+        )
+    elif not payload and observation_payload:
+        logger.warning("Trace Agent: observation tool used but no final analysis tool call")
 
     session.commit()
 
@@ -355,6 +626,8 @@ Analyze these traces and record all protocol states and transitions you can iden
         "events_parsed": len(all_events),
         "sessions_processed": len(all_sessions),
         "llm_tool_calls": len(tool_calls),
+        "observation_tool_used": bool(observation_payload),
+        "observation_summary": observation_summary,
         "fallback_used": fallback_used,
         "message_types_updated": created_mt,
         "states_created": created_states,
@@ -369,17 +642,53 @@ def _apply_state_fallback(project_id: int, session: Session,
         ("INIT", "Initial connection state", 0.9),
         ("AUTH_PENDING", "Awaiting authentication", 0.85),
         ("AUTHENTICATED", "Successfully authenticated", 0.9),
+        ("RENAME_PENDING", "Rename source accepted, waiting for RNTO", 0.78),
+        ("RESETTING", "Session reinitialization in progress", 0.76),
+        ("DATA_CHANNEL_READY", "Data connection negotiated; waiting for transfer command", 0.8),
         ("DATA_TRANSFER", "Data transfer in progress", 0.8),
         ("CLOSED", "Session terminated", 0.9),
     ]
     TRANSITIONS = [
         ("INIT", "AUTH_PENDING", "USER", 0.85),
         ("AUTH_PENDING", "AUTHENTICATED", "PASS", 0.85),
+        ("AUTHENTICATED", "AUTHENTICATED", "ACCT", 0.72),
         ("AUTHENTICATED", "AUTHENTICATED", "PWD", 0.8),
         ("AUTHENTICATED", "AUTHENTICATED", "CWD", 0.8),
+        ("AUTHENTICATED", "AUTHENTICATED", "CDUP", 0.76),
+        ("AUTHENTICATED", "AUTHENTICATED", "XCWD", 0.74),
+        ("AUTHENTICATED", "AUTHENTICATED", "XPWD", 0.74),
+        ("AUTHENTICATED", "AUTHENTICATED", "XCUP", 0.74),
+        ("AUTHENTICATED", "AUTHENTICATED", "MKD", 0.76),
+        ("AUTHENTICATED", "AUTHENTICATED", "XMKD", 0.74),
+        ("AUTHENTICATED", "AUTHENTICATED", "RMD", 0.76),
+        ("AUTHENTICATED", "AUTHENTICATED", "XRMD", 0.74),
+        ("AUTHENTICATED", "AUTHENTICATED", "DELE", 0.76),
+        ("AUTHENTICATED", "AUTHENTICATED", "TYPE", 0.76),
+        ("AUTHENTICATED", "AUTHENTICATED", "MODE", 0.72),
+        ("AUTHENTICATED", "AUTHENTICATED", "STRU", 0.72),
+        ("AUTHENTICATED", "AUTHENTICATED", "SMNT", 0.68),
+        ("AUTHENTICATED", "AUTHENTICATED", "SYST", 0.74),
+        ("AUTHENTICATED", "AUTHENTICATED", "FEAT", 0.74),
+        ("AUTHENTICATED", "AUTHENTICATED", "HELP", 0.72),
+        ("AUTHENTICATED", "AUTHENTICATED", "NOOP", 0.74),
+        ("AUTHENTICATED", "AUTHENTICATED", "MLST", 0.78),
+        ("AUTHENTICATED", "AUTHENTICATED", "SIZE", 0.78),
+        ("AUTHENTICATED", "RENAME_PENDING", "RNFR", 0.78),
+        ("RENAME_PENDING", "AUTHENTICATED", "RNTO", 0.78),
+        ("AUTHENTICATED", "RESETTING", "REIN", 0.76),
+        ("RESETTING", "AUTH_PENDING", "USER", 0.7),
+        ("AUTHENTICATED", "DATA_CHANNEL_READY", "PASV", 0.8),
+        ("AUTHENTICATED", "DATA_CHANNEL_READY", "EPSV", 0.8),
+        ("AUTHENTICATED", "DATA_CHANNEL_READY", "PORT", 0.76),
+        ("AUTHENTICATED", "DATA_CHANNEL_READY", "EPRT", 0.76),
         ("AUTHENTICATED", "DATA_TRANSFER", "LIST", 0.8),
+        ("AUTHENTICATED", "DATA_TRANSFER", "MLSD", 0.78),
         ("AUTHENTICATED", "DATA_TRANSFER", "RETR", 0.75),
         ("AUTHENTICATED", "DATA_TRANSFER", "STOR", 0.75),
+        ("DATA_CHANNEL_READY", "DATA_TRANSFER", "LIST", 0.82),
+        ("DATA_CHANNEL_READY", "DATA_TRANSFER", "MLSD", 0.82),
+        ("DATA_CHANNEL_READY", "DATA_TRANSFER", "RETR", 0.8),
+        ("DATA_CHANNEL_READY", "DATA_TRANSFER", "STOR", 0.8),
         ("DATA_TRANSFER", "AUTHENTICATED", "LIST", 0.7),
         ("AUTHENTICATED", "CLOSED", "QUIT", 0.9),
         ("INIT", "CLOSED", "QUIT", 0.7),

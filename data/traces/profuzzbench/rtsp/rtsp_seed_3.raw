@@ -1,0 +1,64 @@
+OPTIONS rtsp://stream.test/live RTSP/1.0
+CSeq: 1
+
+RTSP/1.0 200 OK
+CSeq: 1
+Public: OPTIONS, DESCRIBE, SETUP, PLAY, GET_PARAMETER, SET_PARAMETER, TEARDOWN
+
+DESCRIBE rtsp://stream.test/live RTSP/1.0
+CSeq: 2
+
+RTSP/1.0 404 Not Found
+CSeq: 2
+
+DESCRIBE rtsp://stream.test/live2 RTSP/1.0
+CSeq: 3
+
+RTSP/1.0 200 OK
+CSeq: 3
+Content-Type: application/sdp
+Content-Length: 60
+
+v=0
+s=Live2
+m=video 0 RTP/AVP 96
+
+SETUP rtsp://stream.test/live2/video RTSP/1.0
+CSeq: 4
+Transport: RTP/AVP;unicast;client_port=6000-6001
+
+RTSP/1.0 200 OK
+CSeq: 4
+Session: DEADBEEF
+Transport: RTP/AVP;unicast;client_port=6000-6001;server_port=8000-8001
+
+GET_PARAMETER rtsp://stream.test/live2 RTSP/1.0
+CSeq: 5
+Session: DEADBEEF
+Content-Type: text/parameters
+Content-Length: 10
+
+packets_received
+
+RTSP/1.0 200 OK
+CSeq: 5
+Session: DEADBEEF
+Content-Type: text/parameters
+Content-Length: 23
+
+packets_received: 1024
+
+PLAY rtsp://stream.test/live2 RTSP/1.0
+CSeq: 6
+Session: DEADBEEF
+
+RTSP/1.0 200 OK
+CSeq: 6
+Session: DEADBEEF
+
+TEARDOWN rtsp://stream.test/live2 RTSP/1.0
+CSeq: 7
+Session: DEADBEEF
+
+RTSP/1.0 200 OK
+CSeq: 7

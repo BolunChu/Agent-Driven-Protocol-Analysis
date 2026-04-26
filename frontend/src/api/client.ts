@@ -31,6 +31,59 @@ export interface DashboardStats {
   disputed_count: number;
 }
 
+export interface PipelineStageStatus {
+  key: string;
+  label: string;
+  status: string;
+  started_at: string | null;
+  ended_at: string | null;
+  summary: Record<string, unknown>;
+}
+
+export interface PipelineRuntime {
+  project_id: number;
+  run_status: string;
+  current_stage: string;
+  started_at: string | null;
+  ended_at: string | null;
+  error: string;
+  stages: PipelineStageStatus[];
+}
+
+export interface ArtifactSummary {
+  schema_message_count: number;
+  seed_count: number;
+  feedback_action_count: number;
+  recommended_actions: string[];
+  focus_commands: string[];
+  unused_message_types: string[];
+}
+
+export interface AgentPath {
+  spec_fallback: boolean;
+  trace_fallback: boolean;
+  spec_llm_calls: number;
+  trace_llm_calls: number;
+  probe_llm_calls: number;
+  transition_provenance_agent: number;
+  transition_provenance_fallback: number;
+  transition_provenance_mixed: number;
+  // Granular source breakdown
+  probe_evidence_count: number;
+  llm_evidence_count: number;
+  // Transition status distribution
+  transition_supported: number;
+  transition_hypothesis: number;
+  transition_disputed: number;
+}
+
+export interface AnalysisSummary {
+  dashboard: DashboardStats;
+  runtime: PipelineRuntime;
+  artifacts: ArtifactSummary;
+  agent_path: AgentPath;
+}
+
 export interface StateItem {
   id: number;
   project_id: number;
@@ -98,6 +151,8 @@ export const api = {
     request<Project>("/projects", { method: "POST", body: JSON.stringify(data) }),
 
   getDashboard: (id: number) => request<DashboardStats>(`/projects/${id}/dashboard`),
+  getRuntime: (id: number) => request<PipelineRuntime>(`/projects/${id}/runtime`),
+  getAnalysisSummary: (id: number) => request<AnalysisSummary>(`/projects/${id}/analysis-summary`),
   getStates: (id: number) => request<StateItem[]>(`/projects/${id}/states`),
   getTransitions: (id: number) => request<TransitionItem[]>(`/projects/${id}/transitions`),
   getMessageTypes: (id: number) => request<MessageTypeItem[]>(`/projects/${id}/message-types`),

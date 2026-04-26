@@ -1,0 +1,17 @@
+EHLO probe.client
+250 smtp.local Hello
+NOOP
+250 Ok
+VRFY user@example.com
+252 Cannot verify, will attempt delivery
+MAIL FROM:<>
+250 Ok
+RCPT TO:<postmaster@example.com>
+250 Ok
+DATA
+354 Start
+Subject: Bounce test
+.
+250 Queued
+QUIT
+221 Bye

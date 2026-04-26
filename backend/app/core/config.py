@@ -26,6 +26,12 @@ class Settings(BaseSettings):
     # Probe
     FTP_PROBE_HOST: str = "127.0.0.1"
     FTP_PROBE_PORT: int = 2121
+    SMTP_PROBE_HOST: str = "127.0.0.1"
+    SMTP_PROBE_PORT: int = 2525
+    HTTP_PROBE_HOST: str = "127.0.0.1"
+    HTTP_PROBE_PORT: int = 8080
+    RTSP_PROBE_HOST: str = "127.0.0.1"
+    RTSP_PROBE_PORT: int = 8554
 
     # CORS
     CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3000"]

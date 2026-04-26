@@ -2,16 +2,22 @@ import { useEffect, useState } from "react";
 import { Spin, Tag, Empty } from "antd";
 import { api } from "../api/client";
 import type { ProbeItem } from "../api/client";
+import { useProjectContext } from "../context/ProjectContext";
 
 export default function ProbeHistory() {
   const [probes, setProbes] = useState<ProbeItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const projectId = 1;
+  const { projectId } = useProjectContext();
 
   useEffect(() => {
+    if (!projectId) {
+      setProbes([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     api.getProbes(projectId).then(setProbes).catch(() => {}).finally(() => setLoading(false));
-  }, []);
+  }, [projectId]);
 
   if (loading) return <div style={{ textAlign: "center", padding: 100 }}><Spin size="large" /></div>;
 

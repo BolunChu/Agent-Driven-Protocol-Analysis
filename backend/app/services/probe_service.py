@@ -3,13 +3,17 @@
 from __future__ import annotations
 import json
 import logging
+import re
 import socket
 from sqlmodel import Session, select
-from ..models.domain import Transition, Invariant, Evidence, ProbeRun
+from ..models.domain import Transition, Invariant, Evidence, ProbeRun, ProtocolProject
 from ..core.config import settings
 from ..core.llm_client import call_with_tools
+from ..protocols.registry import get_protocol_adapter
 
 logger = logging.getLogger(__name__)
+
+TRANSFER_COMMANDS = {"LIST", "NLST", "MLSD", "RETR", "STOR", "APPE"}
 
 
 PROBE_TOOLS = [
@@ -56,27 +60,119 @@ Guidelines:
 - Prefer commands compatible with standard FTP servers and ProFuzzBench-observed message types"""
 
 
+def _read_socket_text(sock: socket.socket, timeout: float = 1.5) -> str:
+    sock.settimeout(timeout)
+    chunks: list[str] = []
+    while True:
+        try:
+            data = sock.recv(4096)
+        except socket.timeout:
+            break
+        if not data:
+            break
+        chunks.append(data.decode("utf-8", errors="replace"))
+        if len(data) < 4096:
+            break
+    return "".join(chunks).strip()
+
+
+def _parse_pasv_endpoint(response: str) -> tuple[str, int] | None:
+    match = re.search(r"\((\d+),(\d+),(\d+),(\d+),(\d+),(\d+)\)", response)
+    if not match:
+        return None
+    host = ".".join(match.group(i) for i in range(1, 5))
+    port = int(match.group(5)) * 256 + int(match.group(6))
+    return host, port
+
+
+def _parse_epsv_port(response: str) -> int | None:
+    match = re.search(r"\(\|\|\|(\d+)\|\)", response)
+    if not match:
+        return None
+    return int(match.group(1))
+
+
+def _open_active_listener() -> tuple[socket.socket, str, str]:
+    listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    listener.bind(("127.0.0.1", 0))
+    listener.listen(1)
+    host, port = listener.getsockname()
+    p1, p2 = divmod(port, 256)
+    port_cmd = f"PORT {host.replace('.', ',')},{p1},{p2}"
+    eprt_cmd = f"EPRT |1|{host}|{port}|"
+    return listener, port_cmd, eprt_cmd
+
+
 def _ftp_exchange(host: str, port: int, commands: list[str], timeout: float = 5.0) -> list[dict]:
     results = []
+    active_listener = None
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(timeout)
         sock.connect((host, port))
-        greeting = sock.recv(4096).decode("utf-8", errors="replace").strip()
+        greeting = _read_socket_text(sock, timeout=timeout)
         results.append({"command": "(connect)", "response": greeting})
         for cmd in commands:
+            cmd_upper = cmd.strip().upper()
+            if cmd_upper == "PORT_AUTO" or cmd_upper == "EPRT_AUTO":
+                if active_listener:
+                    try:
+                        active_listener.close()
+                    except Exception:
+                        pass
+                active_listener, port_cmd, eprt_cmd = _open_active_listener()
+                cmd = port_cmd if cmd_upper == "PORT_AUTO" else eprt_cmd
             sock.sendall((cmd + "\r\n").encode("utf-8"))
-            response = sock.recv(4096).decode("utf-8", errors="replace").strip()
+            response = _read_socket_text(sock, timeout=timeout)
             results.append({"command": cmd, "response": response})
+
+            data_payload = ""
+            if cmd.split(" ", 1)[0].upper() in TRANSFER_COMMANDS:
+                previous_response = results[-2]["response"] if len(results) >= 2 else ""
+                if previous_response.startswith("227"):
+                    endpoint = _parse_pasv_endpoint(previous_response)
+                    if endpoint:
+                        try:
+                            data_sock = socket.create_connection(endpoint, timeout=timeout)
+                            data_payload = _read_socket_text(data_sock, timeout=1.0)
+                            data_sock.close()
+                        except Exception as exc:
+                            data_payload = f"data_connect_error: {exc}"
+                elif previous_response.startswith("229"):
+                    pasv_port = _parse_epsv_port(previous_response)
+                    if pasv_port is not None:
+                        try:
+                            data_sock = socket.create_connection((host, pasv_port), timeout=timeout)
+                            data_payload = _read_socket_text(data_sock, timeout=1.0)
+                            data_sock.close()
+                        except Exception as exc:
+                            data_payload = f"data_connect_error: {exc}"
+                elif active_listener is not None:
+                    try:
+                        active_listener.settimeout(timeout)
+                        conn, _ = active_listener.accept()
+                        data_payload = _read_socket_text(conn, timeout=1.0)
+                        conn.close()
+                    except Exception as exc:
+                        data_payload = f"data_accept_error: {exc}"
+                if data_payload:
+                    results.append({"command": "(data)", "response": data_payload})
         sock.sendall(b"QUIT\r\n")
         try:
-            final = sock.recv(4096).decode("utf-8", errors="replace").strip()
+            final = _read_socket_text(sock, timeout=timeout)
             results.append({"command": "QUIT", "response": final})
         except Exception:
             pass
         sock.close()
     except Exception as e:
         results.append({"command": "(error)", "response": str(e)})
+    finally:
+        if active_listener is not None:
+            try:
+                active_listener.close()
+            except Exception:
+                pass
     return results
 
 
@@ -84,30 +180,54 @@ def _generate_probe_commands(target: dict) -> list[str]:
     claim = target["claim"]
     if target["type"] == "transition":
         mt = claim.message_type
+        if claim.from_state == "RESETTING" and mt == "USER":
+            return ["USER anonymous", "PASS anonymous@test.com", "REIN", "USER anonymous"]
         if claim.from_state == "INIT" and mt == "USER":
             return ["USER anonymous"]
         elif claim.from_state == "AUTH_PENDING" and mt == "PASS":
             return ["USER anonymous", "PASS anonymous@test.com"]
+        elif mt == "PASV":
+            return ["USER anonymous", "PASS anonymous@test.com", "PASV"]
+        elif mt == "EPSV":
+            return ["USER anonymous", "PASS anonymous@test.com", "EPSV"]
+        elif mt == "PORT":
+            return ["USER anonymous", "PASS anonymous@test.com", "PORT_AUTO"]
+        elif mt == "EPRT":
+            return ["USER anonymous", "PASS anonymous@test.com", "EPRT_AUTO"]
         elif mt in ("LIST", "PWD", "XPWD", "CWD", "XCWD", "STAT", "SYST", "FEAT", "HELP"):
-            return ["USER anonymous", "PASS anonymous@test.com", mt if mt != "CWD" else "CWD /"]
+            prefix = ["USER anonymous", "PASS anonymous@test.com"]
+            if claim.from_state == "DATA_CHANNEL_READY" and mt == "LIST":
+                prefix.append("PASV")
+            return prefix + [mt if mt != "CWD" else "CWD /"]
         elif mt in ("SIZE", "RETR", "MLST"):
-            return ["USER anonymous", "PASS anonymous@test.com", f"{mt} readme.txt"]
+            prefix = ["USER anonymous", "PASS anonymous@test.com"]
+            if mt == "RETR" and claim.from_state == "DATA_CHANNEL_READY":
+                prefix.append("PASV")
+            return prefix + [f"{mt} readme.txt"]
         elif mt in ("NLST", "MLSD"):
-            return ["USER anonymous", "PASS anonymous@test.com", f"{mt} pub"]
+            prefix = ["USER anonymous", "PASS anonymous@test.com"]
+            if claim.from_state == "DATA_CHANNEL_READY":
+                prefix.append("PASV")
+            elif mt == "MLSD":
+                prefix.append("EPSV")
+            return prefix + [f"{mt} pub"]
         elif mt in ("MKD", "XMKD"):
             return ["USER anonymous", "PASS anonymous@test.com", f"{mt} scratchdir"]
         elif mt in ("RMD", "XRMD"):
             return ["USER anonymous", "PASS anonymous@test.com", "MKD scratchdir", f"{mt} scratchdir"]
+        elif mt == "ACCT":
+            return ["USER anonymous", "PASS anonymous@test.com", "ACCT billing"]
+        elif mt == "SMNT":
+            return ["USER anonymous", "PASS anonymous@test.com", "SMNT /pub"]
         elif mt == "RNFR":
             return ["USER anonymous", "PASS anonymous@test.com", "RNFR readme.txt", "RNTO readme_renamed.txt"]
         elif mt == "RNTO":
             return ["USER anonymous", "PASS anonymous@test.com", "RNFR readme.txt", "RNTO readme_renamed.txt"]
         elif mt == "REIN":
-            return ["USER anonymous", "PASS anonymous@test.com", "REIN"]
-        elif mt in ("PASV", "EPSV"):
-            return ["USER anonymous", "PASS anonymous@test.com", mt]
-        elif mt in ("PORT", "EPRT"):
-            return ["USER anonymous", "PASS anonymous@test.com", "PORT 127,0,0,1,234,56" if mt == "PORT" else "EPRT |1|127.0.0.1|60001|"]
+            prefix = ["USER anonymous", "PASS anonymous@test.com", "REIN"]
+            if claim.to_state == "AUTH_PENDING":
+                prefix.append("USER anonymous")
+            return prefix
         elif mt in ("TYPE", "MODE", "STRU"):
             arg = {"TYPE": "I", "MODE": "S", "STRU": "F"}[mt]
             return ["USER anonymous", "PASS anonymous@test.com", f"{mt} {arg}"]
@@ -127,9 +247,9 @@ def _generate_probe_commands(target: dict) -> list[str]:
     return ["NOOP"]
 
 
-def _llm_plan_probes(targets: list[dict]) -> dict[str, dict]:
+def _llm_plan_probes(system_prompt: str, targets: list[dict]) -> tuple[dict[str, dict], int]:
     if not targets:
-        return {}
+        return {}, 0
     user_message = "## Candidate Claims For Probe Planning\n\n"
     for target in targets:
         claim = target["claim"]
@@ -141,83 +261,47 @@ def _llm_plan_probes(targets: list[dict]) -> dict[str, dict]:
             f"  status: {status}\n"
             f"  confidence: {confidence}\n"
         )
-    try:
-        tool_calls = call_with_tools(
-            system_prompt=PROBE_SYSTEM_PROMPT,
-            user_message=user_message,
-            tools=PROBE_TOOLS,
-            max_iterations=1,
-        )
-    except Exception as exc:
-        logger.warning("Probe LLM planning failed, falling back to deterministic planning: %s", exc)
-        return {}
+    tool_calls = call_with_tools(
+        system_prompt=system_prompt,
+        user_message=user_message,
+        tools=PROBE_TOOLS,
+        max_iterations=1,
+    )
     if not tool_calls or tool_calls[0]["tool"] != "record_probe_plan":
-        return {}
+        raise RuntimeError(
+            f"Probe LLM returned unexpected tool calls: {[t['tool'] for t in tool_calls]}"
+        )
     probes = tool_calls[0]["args"].get("probes", [])
-    return {probe.get("description", ""): probe for probe in probes if probe.get("description")}
+    return {probe.get("description", ""): probe for probe in probes if probe.get("description")}, len(tool_calls)
 
 
 def run_probe_agent(project_id: int, session: Session) -> dict:
-    results = {"agent": "probe", "probes_executed": 0, "model_updates": []}
+    results = {
+        "agent": "probe",
+        "probes_executed": 0,
+        "model_updates": [],
+        "llm_tool_calls": 0,
+        "llm_plan_used": False,
+    }
+    project = session.get(ProtocolProject, project_id)
+    adapter = get_protocol_adapter(project.protocol_name if project else "FTP")
 
     transitions = session.exec(select(Transition).where(Transition.project_id == project_id)).all()
     invariants = session.exec(select(Invariant).where(Invariant.project_id == project_id)).all()
 
-    probe_targets = []
-    for t in transitions:
-        if t.status == "disputed" or t.confidence < 0.5:
-            probe_targets.append({"type": "transition", "claim": t,
-                                  "description": f"{t.from_state} -> {t.to_state} via {t.message_type}"})
-    for inv in invariants:
-        if inv.status == "disputed" or inv.confidence < 0.5:
-            probe_targets.append({"type": "invariant", "claim": inv, "description": inv.rule_text})
-
-    if not probe_targets:
-        for t in transitions:
-            if t.status == "hypothesis":
-                probe_targets.append({"type": "transition", "claim": t,
-                                      "description": f"{t.from_state} -> {t.to_state} via {t.message_type}"})
-                if len(probe_targets) >= 3:
-                    break
-
-    if not probe_targets:
-        priority_messages = {"USER", "PASS", "LIST", "RETR", "STOR", "RNFR", "RNTO", "QUIT", "REIN"}
-        ranked_transitions = sorted(
-            transitions,
-            key=lambda t: (
-                0 if t.message_type in priority_messages else 1,
-                t.confidence,
-            ),
-        )
-        for t in ranked_transitions:
-            if t.confidence < 0.95:
-                probe_targets.append({
-                    "type": "transition",
-                    "claim": t,
-                    "description": f"{t.from_state} -> {t.to_state} via {t.message_type}",
-                })
-            if len(probe_targets) >= 3:
-                break
-
-    if not probe_targets:
-        ranked_invariants = sorted(invariants, key=lambda inv: inv.confidence)
-        for inv in ranked_invariants:
-            if inv.confidence < 0.95:
-                probe_targets.append({"type": "invariant", "claim": inv, "description": inv.rule_text})
-            if len(probe_targets) >= 3:
-                break
-
-    probe_targets = probe_targets[:3]
-    llm_probe_map = _llm_plan_probes(probe_targets)
+    probe_targets = adapter.select_probe_targets(transitions, invariants)
+    llm_probe_map, llm_tool_calls = _llm_plan_probes(adapter.probe_system_prompt(), probe_targets)
+    results["llm_tool_calls"] = llm_tool_calls
+    results["llm_plan_used"] = bool(llm_probe_map)
 
     for target in probe_targets:
         llm_probe = llm_probe_map.get(target["description"], {})
-        cmds = llm_probe.get("commands") or _generate_probe_commands(target)
-        exchange = _ftp_exchange(settings.FTP_PROBE_HOST, settings.FTP_PROBE_PORT, cmds)
+        cmds = llm_probe.get("commands") or adapter.generate_probe_commands(target)
+        exchange = adapter.execute_probe(cmds)
 
         probe_run = ProbeRun(
-            project_id=project_id, target_host=settings.FTP_PROBE_HOST,
-            target_port=settings.FTP_PROBE_PORT, goal=f"Verify: {target['description']}",
+            project_id=project_id, target_host=adapter.probe_target_host(),
+            target_port=adapter.probe_target_port(), goal=f"Verify: {target['description']}",
             request_payload=json.dumps(cmds), response_payload=json.dumps(exchange),
             result_summary=llm_probe.get("rationale", f"Executed {len(exchange)} exchanges"),
         )

@@ -3,12 +3,16 @@
 from __future__ import annotations
 import json
 import logging
+import time
 from openai import OpenAI
 from .config import settings
 
 logger = logging.getLogger(__name__)
 
 _client: OpenAI | None = None
+
+MAX_RETRIES = 5
+RETRY_BASE_DELAY = 2.0  # seconds, doubles each attempt
 
 
 def get_client() -> OpenAI:
@@ -17,7 +21,7 @@ def get_client() -> OpenAI:
         _client = OpenAI(
             api_key=settings.OPENAI_API_KEY,
             base_url=settings.OPENAI_BASE_URL,
-            max_retries=0,
+            max_retries=0,  # We handle retries ourselves
         )
     return _client
 
@@ -29,43 +33,66 @@ def call_with_tools(
     max_iterations: int = 1,
     model: str | None = None,
 ) -> list[dict]:
-    """Call LLM with function calling tools in a single turn.
+    """Call LLM with function calling tools, retrying up to MAX_RETRIES times.
 
+    Raises RuntimeError after all retries are exhausted — no rule-based fallback.
     Returns:
         List of {"tool": tool_name, "args": {...}} for every tool call made.
     """
     client = get_client()
     model_name = model or settings.OPENAI_MODEL
 
-    all_tool_calls: list[dict] = []
-    response = client.chat.completions.create(
-        model=model_name,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_message},
-        ],
-        tools=tools,
-        tool_choice="required",
-    )
-
-    choice = response.choices[0]
-    message = choice.message
-
-    if not message.tool_calls:
-        logger.warning("LLM returned no tool calls; finish_reason=%s content=%r",
-                       choice.finish_reason, message.content)
-        return all_tool_calls
-
-    for tc in message.tool_calls:
+    last_exc: Exception | None = None
+    for attempt in range(1, MAX_RETRIES + 1):
         try:
-            args = json.loads(tc.function.arguments)
-        except json.JSONDecodeError:
-            args = {"raw": tc.function.arguments}
+            response = client.chat.completions.create(
+                model=model_name,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_message},
+                ],
+                tools=tools,
+                tool_choice="required",
+            )
 
-        all_tool_calls.append({"tool": tc.function.name, "args": args})
+            choice = response.choices[0]
+            message = choice.message
 
-    logger.info("LLM collected %d tool calls", len(all_tool_calls))
-    return all_tool_calls
+            if not message.tool_calls:
+                raise RuntimeError(
+                    f"LLM returned no tool calls (finish_reason={choice.finish_reason!r}, "
+                    f"content={message.content!r})"
+                )
+
+            all_tool_calls: list[dict] = []
+            for tc in message.tool_calls:
+                try:
+                    args = json.loads(tc.function.arguments)
+                except json.JSONDecodeError:
+                    args = {"raw": tc.function.arguments}
+                all_tool_calls.append({"tool": tc.function.name, "args": args})
+
+            logger.info("LLM collected %d tool calls (attempt %d)", len(all_tool_calls), attempt)
+            return all_tool_calls
+
+        except Exception as exc:
+            last_exc = exc
+            if attempt < MAX_RETRIES:
+                delay = RETRY_BASE_DELAY * (2 ** (attempt - 1))
+                logger.warning(
+                    "LLM call failed (attempt %d/%d): %s — retrying in %.1fs",
+                    attempt, MAX_RETRIES, exc, delay,
+                )
+                time.sleep(delay)
+            else:
+                logger.error(
+                    "LLM call failed after %d attempts: %s — aborting (no fallback)",
+                    MAX_RETRIES, exc,
+                )
+
+    raise RuntimeError(
+        f"LLM call_with_tools failed after {MAX_RETRIES} attempts"
+    ) from last_exc
 
 
 def call_simple(

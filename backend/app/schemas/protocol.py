@@ -135,3 +135,57 @@ class DashboardStats(BaseModel):
     invariant_count: int
     probe_count: int
     disputed_count: int
+
+
+class PipelineStageStatus(BaseModel):
+    key: str
+    label: str
+    status: str
+    started_at: datetime | None = None
+    ended_at: datetime | None = None
+    summary: dict = {}
+
+
+class PipelineRuntimeRead(BaseModel):
+    project_id: int
+    run_status: str
+    current_stage: str
+    started_at: datetime | None = None
+    ended_at: datetime | None = None
+    error: str = ""
+    stages: list[PipelineStageStatus] = []
+
+
+class ArtifactSummaryRead(BaseModel):
+    schema_message_count: int
+    seed_count: int
+    feedback_action_count: int
+    recommended_actions: list[str] = []
+    focus_commands: list[str] = []
+    unused_message_types: list[str] = []
+
+
+class AgentPathRead(BaseModel):
+    """Agent-first path observability: provenance & fallback signals."""
+    spec_fallback: bool = False
+    trace_fallback: bool = False
+    spec_llm_calls: int = 0
+    trace_llm_calls: int = 0
+    probe_llm_calls: int = 0
+    transition_provenance_agent: int = 0
+    transition_provenance_fallback: int = 0
+    transition_provenance_mixed: int = 0
+    # Granular fallback source breakdown (Task 4: 收紧 fallback 残留来源的可解释性)
+    probe_evidence_count: int = 0       # Evidence records from probe runs
+    llm_evidence_count: int = 0         # Evidence records directly from LLM agents
+    # Transition status distribution
+    transition_supported: int = 0
+    transition_hypothesis: int = 0
+    transition_disputed: int = 0
+
+
+class AnalysisSummaryRead(BaseModel):
+    dashboard: DashboardStats
+    runtime: PipelineRuntimeRead
+    artifacts: ArtifactSummaryRead
+    agent_path: AgentPathRead = AgentPathRead()

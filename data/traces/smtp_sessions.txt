@@ -1,0 +1,102 @@
+EHLO client.example.com
+250-smtp.local Hello client.example.com
+250 HELP
+MAIL FROM:<alice@example.com>
+250 Ok
+RCPT TO:<bob@example.com>
+250 Ok
+DATA
+354 End data with <CR><LF>.<CR><LF>
+Subject: Hello Bob
+From: alice@example.com
+To: bob@example.com
+
+Hi Bob, this is a test.
+.
+250 Ok: queued
+QUIT
+221 Bye
+---
+EHLO relay.net
+250 smtp.local Hello relay.net
+MAIL FROM:<sender@relay.net>
+250 Ok
+RCPT TO:<user1@dest.com>
+250 Ok
+RCPT TO:<user2@dest.com>
+250 Ok
+RCPT TO:<unknown@dest.com>
+550 User unknown
+DATA
+354 Go ahead
+Subject: Multi-rcpt test
+
+Hello.
+.
+250 Queued
+QUIT
+221 Bye
+---
+EHLO fuzzer.local
+250 smtp.local
+AUTH LOGIN
+334 VXNlcm5hbWU6
+dXNlcg==
+334 UGFzc3dvcmQ6
+cGFzcw==
+235 Authentication successful
+MAIL FROM:<fuzzer@local>
+250 Ok
+RCPT TO:<target@local>
+250 Ok
+RSET
+250 Ok
+MAIL FROM:<retry@local>
+250 Ok
+RCPT TO:<target@local>
+250 Ok
+DATA
+354 Go ahead
+Subject: Auth then RSET test
+
+Body.
+.
+250 Queued
+QUIT
+221 Bye
+---
+HELO old.client
+250 Hello old.client
+MAIL FROM:<postmaster@old.client>
+250 Ok
+RCPT TO:<admin@server>
+250 Ok
+DATA
+354 Start
+Subject: Legacy HELO test
+
+Legacy client body.
+.
+250 Ok
+NOOP
+250 Ok
+VRFY admin@server
+252 Cannot verify
+QUIT
+221 Bye
+---
+EHLO probe.test
+250 smtp.local
+MAIL FROM:<>
+250 Ok
+RCPT TO:<postmaster@server>
+250 Ok
+DATA
+354 Go ahead
+Subject: Bounce probe
+
+Test DSN.
+.
+250 Queued
+QUIT
+221 Bye

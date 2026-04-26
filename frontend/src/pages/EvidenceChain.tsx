@@ -2,21 +2,29 @@ import { useEffect, useState } from "react";
 import { Spin, Tag, Empty } from "antd";
 import { api } from "../api/client";
 import type { EvidenceItem, TransitionItem, InvariantItem } from "../api/client";
+import { useProjectContext } from "../context/ProjectContext";
 
 export default function EvidenceChain() {
   const [evidence, setEvidence] = useState<EvidenceItem[]>([]);
   const [transitions, setTransitions] = useState<TransitionItem[]>([]);
   const [invariants, setInvariants] = useState<InvariantItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const projectId = 1;
+  const { projectId } = useProjectContext();
 
   useEffect(() => {
+    if (!projectId) {
+      setEvidence([]);
+      setTransitions([]);
+      setInvariants([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     Promise.all([api.getEvidence(projectId), api.getTransitions(projectId), api.getInvariants(projectId)])
       .then(([e, t, i]) => { setEvidence(e); setTransitions(t); setInvariants(i); })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [projectId]);
 
   // Group evidence by claim
   const groups = new Map<string, { label: string; status: string; items: EvidenceItem[] }>();

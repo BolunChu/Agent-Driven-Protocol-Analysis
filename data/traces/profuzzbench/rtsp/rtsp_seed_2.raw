@@ -1,0 +1,60 @@
+OPTIONS rtsp://media.example.com/ RTSP/1.0
+CSeq: 1
+
+RTSP/1.0 200 OK
+CSeq: 1
+Public: OPTIONS, DESCRIBE, SETUP, PLAY, PAUSE, TEARDOWN
+
+DESCRIBE rtsp://media.example.com/movie RTSP/1.0
+CSeq: 2
+Accept: application/sdp
+
+RTSP/1.0 200 OK
+CSeq: 2
+Content-Type: application/sdp
+Content-Length: 80
+
+v=0
+s=Movie
+m=audio 0 RTP/AVP 0
+
+SETUP rtsp://media.example.com/movie/audio RTSP/1.0
+CSeq: 3
+Transport: RTP/AVP;unicast;client_port=5000-5001
+
+RTSP/1.0 200 OK
+CSeq: 3
+Session: ABCDEF01
+Transport: RTP/AVP;unicast;client_port=5000-5001;server_port=7000-7001
+
+PLAY rtsp://media.example.com/movie RTSP/1.0
+CSeq: 4
+Session: ABCDEF01
+Range: npt=30.000-60.000
+
+RTSP/1.0 200 OK
+CSeq: 4
+Session: ABCDEF01
+
+PAUSE rtsp://media.example.com/movie RTSP/1.0
+CSeq: 5
+Session: ABCDEF01
+
+RTSP/1.0 200 OK
+CSeq: 5
+Session: ABCDEF01
+
+PLAY rtsp://media.example.com/movie RTSP/1.0
+CSeq: 6
+Session: ABCDEF01
+
+RTSP/1.0 200 OK
+CSeq: 6
+Session: ABCDEF01
+
+TEARDOWN rtsp://media.example.com/movie RTSP/1.0
+CSeq: 7
+Session: ABCDEF01
+
+RTSP/1.0 200 OK
+CSeq: 7

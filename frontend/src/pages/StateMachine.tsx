@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Spin, Drawer, Tag, Empty } from "antd";
 import { api } from "../api/client";
 import type { StateItem, TransitionItem, EvidenceItem } from "../api/client";
+import { useProjectContext } from "../context/ProjectContext";
 
 /* ------------------------------------------------------------------ */
 /* SVG-based interactive state-machine graph                          */
@@ -15,49 +16,95 @@ interface NodePos {
 
 const NODE_W = 150;
 const NODE_H = 54;
+const HORIZONTAL_SPACING = 280;
+const VERTICAL_SPACING = 140;
+
+// Core states shared/common across protocols
 const COLORS: Record<string, string> = {
-  INIT: "#60a5fa",
-  AUTH_PENDING: "#fb923c",
-  AUTHENTICATED: "#34d399",
-  DATA_TRANSFER: "#a78bfa",
-  CLOSED: "#f87171",
+  // Common
+  INIT:             "#60a5fa",
+  CLOSED:           "#f87171",
+  ERROR:            "#f87171",
+
+  // FTP
+  AUTH_PENDING:         "#fb923c",
+  AUTHENTICATED:        "#34d399",
+  DATA_CHANNEL_READY:   "#22d3ee",
+  DATA_TRANSFER:        "#a78bfa",
+  RESETTING:            "#f59e0b",
+
+  // SMTP
+  CONNECTED:            "#60a5fa",
+  GREETED:              "#818cf8",
+  MAIL_TRANSACTION:     "#34d399",
+  RCPT_COLLECTING:      "#22d3ee",
+  DATA_RECEIVING:       "#a78bfa",
+  MAIL_SENT:            "#f59e0b",
+  AUTH_REQUIRED:        "#fb923c",
+
+  // RTSP
+  OPTIONS_SENT:         "#38bdf8",
+  DESCRIBED:            "#818cf8",
+  SETUP:                "#34d399",
+  PLAYING:              "#4ade80",
+  PAUSED:               "#f59e0b",
+  TEARDOWN:             "#f87171",
+
+  // HTTP
+  REQUEST_RECEIVED:     "#38bdf8",
+  PROCESSING:           "#818cf8",
+  RESPONDED:            "#34d399",
+  REDIRECT:             "#f59e0b",
+  AUTH_CHALLENGED:      "#fb923c",
 };
 
+const PALETTE = [
+  "#60a5fa", "#a78bfa", "#34d399", "#22d3ee", "#fb923c",
+  "#f59e0b", "#818cf8", "#38bdf8", "#4ade80", "#e879f9",
+];
+
+function hashColor(name: string): string {
+  let h = 5381;
+  for (let i = 0; i < name.length; i++) h = ((h << 5) + h) ^ name.charCodeAt(i);
+  return PALETTE[Math.abs(h) % PALETTE.length];
+}
+
 function getColor(name: string) {
-  return COLORS[name] || "#60a5fa";
+  return COLORS[name] || hashColor(name);
 }
 
 function layoutNodes(states: StateItem[]): NodePos[] {
-  // Arrange nodes in a structured layout
-  const positions: Record<string, [number, number]> = {
-    INIT: [400, 60],
-    AUTH_PENDING: [400, 190],
-    AUTHENTICATED: [400, 320],
-    DATA_TRANSFER: [650, 320],
-    CLOSED: [400, 460],
+  const basePositions: Record<string, [number, number]> = {
+    INIT: [1.5, 0.5], AUTH_PENDING: [1.5, 1.5], AUTHENTICATED: [1.5, 2.5],
+    DATA_CHANNEL_READY: [2.5, 1.8], DATA_TRANSFER: [2.5, 2.8],
+    RESETTING: [0.5, 2.5], CLOSED: [1.5, 3.8],
+    CONNECTED: [1.5, 0.5], GREETED: [1.5, 1.3], MAIL_TRANSACTION: [1.5, 2.5],
+    RCPT_COLLECTING: [2.5, 1.8], DATA_RECEIVING: [2.5, 3.0], MAIL_SENT: [1.5, 3.8],
+    AUTH_REQUIRED: [0.5, 1.3],
+    OPTIONS_SENT: [1.5, 0.6], DESCRIBED: [1.5, 1.6], SETUP: [1.5, 2.6],
+    PLAYING: [2.5, 2.0], PAUSED: [2.5, 3.2], TEARDOWN: [1.5, 3.8],
+    REQUEST_RECEIVED: [1.5, 0.6], PROCESSING: [1.5, 1.7], RESPONDED: [1.5, 2.8],
+    REDIRECT: [2.5, 1.8], AUTH_CHALLENGED: [0.5, 1.8], ERROR: [0.5, 3.0],
   };
-
-  const result: NodePos[] = [];
-  let extraX = 150;
-  let extraY = 100;
-
+  const placed: NodePos[] = [];
+  const extras: StateItem[] = [];
   for (const s of states) {
-    const pos = positions[s.name];
-    if (pos) {
-      result.push({ x: pos[0], y: pos[1], state: s });
+    const coords = basePositions[s.name];
+    if (coords) {
+      placed.push({ x: coords[0] * HORIZONTAL_SPACING, y: coords[1] * VERTICAL_SPACING, state: s });
     } else {
-      result.push({ x: extraX, y: extraY, state: s });
-      extraX += 180;
-      if (extraX > 700) {
-        extraX = 150;
-        extraY += 120;
-      }
+      extras.push(s);
     }
   }
-  return result;
-}
-
-function getEdgePath(
+  let col = 0;
+  const startX = 100;
+  const startY = 600;
+  for (const s of extras) {
+    placed.push({ x: startX + (col % 4) * 220, y: startY + Math.floor(col / 4) * 120, state: s });
+    col++;
+  }
+  return placed;
+}function getEdgePath(
   from: NodePos,
   to: NodePos,
   index: number,
@@ -69,40 +116,70 @@ function getEdgePath(
   const ty = to.y + NODE_H / 2;
 
   if (from.state.name === to.state.name) {
-    // Self-loop
-    const r = 30;
+    const r = 35 + index * 15;
+    const sweep = 1;
+    const largeArc = 1;
+    const x1 = fx + NODE_W / 2 - 10;
+    const y1 = fy - 5;
+    const x2 = fx + NODE_W / 2 - 10;
+    const y2 = fy + 15;
     return {
-      path: `M ${fx + NODE_W / 2 - 10} ${fy - 5}
-             C ${fx + NODE_W / 2 + r} ${fy - r - 30},
-               ${fx + NODE_W / 2 + r + 20} ${fy + r - 10},
-               ${fx + NODE_W / 2 - 10} ${fy + 15}`,
-      labelX: fx + NODE_W / 2 + 45,
-      labelY: fy - 10,
+      path: `M ${x1} ${y1} A ${r} ${r} 0 ${largeArc} ${sweep} ${x2} ${y2}`,
+      labelX: fx + NODE_W / 2 + r + 5,
+      labelY: fy + 5,
     };
   }
 
-  // Curved edge with offset for multiple edges
-  const offset = (index - (total - 1) / 2) * 30;
-  const midX = (fx + tx) / 2 + offset;
-  const midY = (fy + ty) / 2 + offset * 0.3;
+  const isReverse = from.state.name > to.state.name;
+  const n1 = isReverse ? to : from;
+  const n2 = isReverse ? from : to;
+  const bfx = n1.x + NODE_W / 2;
+  const bfy = n1.y + NODE_H / 2;
+  const btx = n2.x + NODE_W / 2;
+  const bty = n2.y + NODE_H / 2;
+  const dx = btx - bfx;
+  const dy = bty - bfy;
+  const len = Math.sqrt(dx * dx + dy * dy) || 1;
+  const nx = -dy / len; 
+  const ny = dx / len;  
+  const spread = 30;
+  const dist = (index - (total - 1) / 2) * spread;
+  const midX = (fx + tx) / 2 + nx * dist;
+  const midY = (fy + ty) / 2 + ny * dist;
+
+  const t = 0.35 + (index / Math.max(total, 1)) * 0.3; 
+  const invT = 1 - t;
+  const lx = invT * invT * fx + 2 * invT * t * midX + t * t * tx;
+  const ly = invT * invT * fy + 2 * invT * t * midY + t * t * ty;
 
   return {
     path: `M ${fx} ${fy} Q ${midX} ${midY} ${tx} ${ty}`,
-    labelX: midX,
-    labelY: midY - 10,
+    labelX: lx + nx * 5,
+    labelY: ly + ny * 5,
   };
-}
-
-export default function StateMachine() {
+}export default function StateMachine() {
   const [states, setStates] = useState<StateItem[]>([]);
   const [transitions, setTransitions] = useState<TransitionItem[]>([]);
   const [evidence, setEvidence] = useState<EvidenceItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<TransitionItem | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const projectId = 1;
+  const { projectId } = useProjectContext();
+
+  // Draggable node state
+  const [nodes, setNodes] = useState<NodePos[]>([]);
+  const [draggingNode, setDraggingNode] = useState<string | null>(null);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
+    if (!projectId) {
+      setStates([]);
+      setTransitions([]);
+      setEvidence([]);
+      setNodes([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     Promise.all([
       api.getStates(projectId),
@@ -113,12 +190,13 @@ export default function StateMachine() {
         setStates(s);
         setTransitions(t);
         setEvidence(e);
+        // Initialize nodes with layout
+        setNodes(layoutNodes(s));
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [projectId]);
 
-  const nodes = layoutNodes(states);
   const nodeMap = new Map(nodes.map((n) => [n.state.name, n]));
 
   // Group transitions by from->to for offset calculation
@@ -128,6 +206,39 @@ export default function StateMachine() {
     if (!edgeGroups.has(key)) edgeGroups.set(key, []);
     edgeGroups.get(key)!.push(t);
   });
+
+  // Drag handlers
+  const handleMouseDown = (e: React.MouseEvent, nodeName: string, x: number, y: number) => {
+    setDraggingNode(nodeName);
+    // Get mouse pos relative to node
+    const svg = (e.currentTarget as SVGElement).closest("svg");
+    if (!svg) return;
+    const pt = svg.createSVGPoint();
+    pt.x = e.clientX;
+    pt.y = e.clientY;
+    const transformed = pt.matrixTransform(svg.getScreenCTM()?.inverse());
+    setDragOffset({ x: transformed.x - x, y: transformed.y - y });
+    e.stopPropagation();
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!draggingNode) return;
+    const svg = e.currentTarget as SVGElement;
+    const pt = svg.createSVGPoint();
+    pt.x = e.clientX;
+    pt.y = e.clientY;
+    const transformed = pt.matrixTransform(svg.getScreenCTM()?.inverse());
+    
+    setNodes(prev => prev.map(n => 
+      n.state.name === draggingNode 
+        ? { ...n, x: transformed.x - dragOffset.x, y: transformed.y - dragOffset.y }
+        : n
+    ));
+  };
+
+  const handleMouseUp = () => {
+    setDraggingNode(null);
+  };
 
   const handleEdgeClick = (t: TransitionItem) => {
     setSelected(t);
@@ -161,16 +272,24 @@ export default function StateMachine() {
   }
 
   return (
-    <div className="fade-in">
+    <div className="fade-in" style={{ userSelect: draggingNode ? "none" : "auto" }}>
       <div className="page-header">
         <h1>Protocol State Machine</h1>
         <p>
-          Interactive state transition graph — click edges to view evidence
+          Interactive state transition graph — <b>Drag nodes</b> to reorganize, click edges to view evidence
         </p>
       </div>
 
-      <div className="graph-container" style={{ padding: 0 }}>
-        <svg width="100%" height="560" viewBox="0 0 900 540">
+      <div className="graph-container" style={{ padding: 0, overflow: "hidden", background: "var(--bg-secondary)" }}>
+        <svg 
+          width="100%" 
+          height="700" 
+          viewBox="0 0 1000 800"
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+          style={{ cursor: draggingNode ? "grabbing" : "default" }}
+        >
           <defs>
             <marker id="arrow" viewBox="0 0 10 8" refX="9" refY="4"
               markerWidth="8" markerHeight="6" orient="auto-start-reverse">
@@ -202,10 +321,14 @@ export default function StateMachine() {
             const key = [t.from_state, t.to_state].sort().join("|");
             const group = edgeGroups.get(key) || [t];
             const groupIdx = group.indexOf(t);
-
+            
             const { path, labelX, labelY } = getEdgePath(
               fromNode, toNode, groupIdx, group.length
             );
+
+            // Additional label staggering for multiple edges to avoid horizontal overlap
+            const staggerX = (groupIdx - (group.length - 1) / 2) * 15;
+            const finalLabelX = labelX + staggerX;
 
             const edgeColor =
               t.status === "supported" ? "#34d399" :
@@ -226,14 +349,25 @@ export default function StateMachine() {
                   markerEnd={markerEnd}
                   className="edge-line"
                 />
-                {/* Invisible wider path for easier clicking */}
                 <path d={path} stroke="transparent" strokeWidth={15} fill="none" />
-                <text x={labelX} y={labelY} textAnchor="middle" className="edge-label"
-                  style={{ fontSize: 11, fill: edgeColor }}>
+                
+                {/* Staggered Label Background */}
+                <rect
+                  x={finalLabelX - 35}
+                  y={labelY - 12}
+                  width={70}
+                  height={26}
+                  rx={4}
+                  fill="white"
+                  fillOpacity={0.8}
+                />
+
+                <text x={finalLabelX} y={labelY} textAnchor="middle" className="edge-label"
+                  style={{ fontSize: 11, fontWeight: 600, fill: edgeColor }}>
                   {t.message_type}
                 </text>
-                <text x={labelX} y={labelY + 14} textAnchor="middle"
-                  style={{ fontSize: 9, fill: "var(--text-muted)" }}>
+                <text x={finalLabelX} y={labelY + 12} textAnchor="middle"
+                  style={{ fontSize: 9, fill: "var(--text-muted)", fontWeight: 500 }}>
                   {(t.confidence * 100).toFixed(0)}%
                 </text>
               </g>
@@ -243,19 +377,24 @@ export default function StateMachine() {
           {/* Nodes */}
           {nodes.map((n) => {
             const color = getColor(n.state.name);
+            const isDragging = draggingNode === n.state.name;
             return (
-              <g key={n.state.name} className="state-node">
+              <g 
+                key={n.state.name} 
+                className="state-node"
+                onMouseDown={(e) => handleMouseDown(e, n.state.name, n.x, n.y)}
+                style={{ cursor: isDragging ? "grabbing" : "grab" }}
+              >
                 <rect
                   className="node-bg"
                   x={n.x} y={n.y}
                   width={NODE_W} height={NODE_H}
                   rx={12} ry={12}
-                  fill="var(--bg-card)"
+                  fill={isDragging ? "var(--bg-secondary)" : "var(--bg-card)"}
                   stroke={color}
-                  strokeWidth={1.5}
+                  strokeWidth={isDragging ? 2.5 : 1.5}
                   filter="url(#glow)"
                 />
-                {/* Top accent line */}
                 <rect
                   x={n.x + 1} y={n.y + 1}
                   width={NODE_W - 2} height={3}
@@ -268,7 +407,7 @@ export default function StateMachine() {
                   y={n.y + NODE_H / 2 + 2}
                   textAnchor="middle"
                   dominantBaseline="middle"
-                  style={{ fill: color, fontSize: 13, fontWeight: 600, fontFamily: "var(--font-mono)" }}
+                  style={{ fill: color, fontSize: 13, fontWeight: 700, fontFamily: "var(--font-mono)", pointerEvents: "none" }}
                 >
                   {n.state.name}
                 </text>
@@ -276,7 +415,7 @@ export default function StateMachine() {
                   x={n.x + NODE_W / 2}
                   y={n.y + NODE_H / 2 + 17}
                   textAnchor="middle"
-                  style={{ fill: "var(--text-muted)", fontSize: 9 }}
+                  style={{ fill: "var(--text-muted)", fontSize: 9, pointerEvents: "none" }}
                 >
                   conf: {(n.state.confidence * 100).toFixed(0)}%
                 </text>
@@ -286,20 +425,14 @@ export default function StateMachine() {
         </svg>
       </div>
 
-      {/* Legend */}
       <div style={{ display: "flex", gap: 24, marginTop: 16, justifyContent: "center" }}>
         <LegendItem color="#60a5fa" label="Hypothesis" />
         <LegendItem color="#34d399" label="Supported" />
         <LegendItem color="#f87171" label="Disputed" />
       </div>
 
-      {/* Edge Detail Drawer */}
       <Drawer
-        title={
-          selected
-            ? `${selected.from_state} → ${selected.to_state}`
-            : "Transition Detail"
-        }
+        title={selected ? `${selected.from_state} → ${selected.to_state}` : "Transition Detail"}
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         width={480}
@@ -311,75 +444,33 @@ export default function StateMachine() {
         {selected && (
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             <div>
-              <div style={{ color: "var(--text-muted)", fontSize: 12, marginBottom: 4 }}>
-                MESSAGE TYPE
-              </div>
-              <div style={{ fontFamily: "var(--font-mono)", fontSize: 16, color: "var(--accent-blue)" }}>
-                {selected.message_type}
-              </div>
+              <div style={{ color: "var(--text-muted)", fontSize: 12, marginBottom: 4 }}>MESSAGE TYPE</div>
+              <div style={{ fontFamily: "var(--font-mono)", fontSize: 16, color: "var(--accent-blue)" }}>{selected.message_type}</div>
             </div>
-
             <div style={{ display: "flex", gap: 16 }}>
               <div>
                 <div style={{ color: "var(--text-muted)", fontSize: 12, marginBottom: 4 }}>STATUS</div>
-                <span className={`status-badge status-${selected.status}`}>
-                  {selected.status}
-                </span>
+                <span className={`status-badge status-${selected.status}`}>{selected.status}</span>
               </div>
               <div>
                 <div style={{ color: "var(--text-muted)", fontSize: 12, marginBottom: 4 }}>CONFIDENCE</div>
                 <div style={{ fontWeight: 600 }}>{(selected.confidence * 100).toFixed(1)}%</div>
-                <div className="confidence-bar" style={{ width: 120, marginTop: 4 }}>
-                  <div
-                    className="confidence-bar-fill"
-                    style={{
-                      width: `${selected.confidence * 100}%`,
-                      background:
-                        selected.confidence > 0.7
-                          ? "var(--gradient-success)"
-                          : selected.confidence > 0.4
-                          ? "var(--accent-orange)"
-                          : "var(--accent-red)",
-                    }}
-                  />
-                </div>
               </div>
             </div>
-
             <div>
-              <div style={{ color: "var(--text-muted)", fontSize: 12, marginBottom: 8 }}>
-                EVIDENCE ({selectedEvidence.length})
-              </div>
+              <div style={{ color: "var(--text-muted)", fontSize: 12, marginBottom: 8 }}>EVIDENCE ({selectedEvidence.length})</div>
               {selectedEvidence.length === 0 ? (
-                <div style={{ color: "var(--text-muted)", fontSize: 13 }}>
-                  No evidence bound to this transition.
-                </div>
+                <div style={{ color: "var(--text-muted)", fontSize: 13 }}>No evidence bound to this transition.</div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   {selectedEvidence.map((e) => (
-                    <div
-                      key={e.id}
-                      style={{
-                        background: "#f8fafc",
-                        border: "1px solid var(--border-color)",
-                        borderRadius: "var(--radius-sm)",
-                        padding: 12,
-                      }}
-                    >
+                    <div key={e.id} style={{ background: "#f8fafc", border: "1px solid var(--border-color)", borderRadius: "var(--radius-sm)", padding: 12 }}>
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                        <Tag color={e.source_type === "doc" ? "blue" : e.source_type === "trace" ? "green" : e.source_type === "probe" ? "orange" : "purple"}>
-                          {e.source_type}
-                        </Tag>
-                        <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                          score: {e.score.toFixed(2)}
-                        </span>
+                        <Tag color={e.source_type === "doc" ? "blue" : e.source_type === "trace" ? "green" : e.source_type === "probe" ? "orange" : "purple"}>{e.source_type}</Tag>
+                        <span style={{ fontSize: 12, color: "var(--text-muted)" }}>score: {e.score.toFixed(2)}</span>
                       </div>
-                      <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 4 }}>
-                        {e.source_ref}
-                      </div>
-                      <div className="snippet-block" style={{ fontSize: 12, marginTop: 6 }}>
-                        {e.snippet}
-                      </div>
+                      <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 4 }}>{e.source_ref}</div>
+                      <div className="snippet-block" style={{ fontSize: 12, marginTop: 6 }}>{e.snippet}</div>
                     </div>
                   ))}
                 </div>

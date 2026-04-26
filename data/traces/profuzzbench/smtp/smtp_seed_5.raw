@@ -1,0 +1,23 @@
+EHLO fuzzer.test
+250-smtp.local
+250-PIPELINING
+250 SIZE 104857600
+MAIL FROM:<fuzzer@test.com> SIZE=1024
+250 Ok
+RCPT TO:<victim@test.com>
+250 Ok
+RSET
+250 Ok
+MAIL FROM:<retry@test.com>
+250 Ok
+RCPT TO:<victim@test.com>
+250 Ok
+DATA
+354 Enter message
+Subject: Pipelining and RSET test
+
+Test body.
+.
+250 Message queued
+QUIT
+221 Bye

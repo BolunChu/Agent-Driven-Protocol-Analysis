@@ -1,0 +1,19 @@
+HELO legacy.client
+250 Hello legacy.client
+MAIL FROM:<sender@old.net>
+250 Ok
+RCPT TO:<user1@example.com>
+250 Ok
+RCPT TO:<user2@example.com>
+250 Ok
+RCPT TO:<user3@example.com>
+550 User unknown
+DATA
+354 End data with <CR><LF>.<CR><LF>
+Subject: Multi-recipient test
+
+Body content here.
+.
+250 Message queued
+QUIT
+221 Closing connection

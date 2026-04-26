@@ -1,0 +1,127 @@
+GET / HTTP/1.1
+Host: localhost:8080
+User-Agent: ProtocolAnalyzer/1.0
+Accept: */*
+Connection: keep-alive
+
+HTTP/1.1 200 OK
+Content-Type: text/html
+Content-Length: 20
+
+<h1>Hello World</h1>
+
+GET /api/items HTTP/1.1
+Host: localhost:8080
+Accept: application/json
+
+HTTP/1.1 200 OK
+Content-Type: application/json
+Content-Length: 25
+
+[{"id":1,"name":"item1"}]
+
+POST /api/items HTTP/1.1
+Host: localhost:8080
+Content-Type: application/json
+Content-Length: 20
+
+{"name":"new_item_x"}
+
+HTTP/1.1 201 Created
+Content-Length: 0
+
+GET /notfound HTTP/1.1
+Host: localhost:8080
+
+HTTP/1.1 404 Not Found
+Content-Length: 9
+
+Not Found
+---
+GET /protected HTTP/1.1
+Host: localhost:8080
+
+HTTP/1.1 401 Unauthorized
+WWW-Authenticate: Basic realm="Test"
+Content-Length: 12
+
+Unauthorized
+
+GET /protected HTTP/1.1
+Host: localhost:8080
+Authorization: Basic dXNlcjpwYXNz
+
+HTTP/1.1 200 OK
+Content-Type: application/json
+Content-Length: 20
+
+{"status":"authed"}
+
+PUT /api/items/1 HTTP/1.1
+Host: localhost:8080
+Authorization: Basic dXNlcjpwYXNz
+Content-Type: application/json
+Content-Length: 15
+
+{"name":"updated"}
+
+HTTP/1.1 200 OK
+Content-Length: 2
+
+OK
+
+DELETE /api/items/1 HTTP/1.1
+Host: localhost:8080
+Authorization: Basic dXNlcjpwYXNz
+
+HTTP/1.1 204 No Content
+Content-Length: 0
+
+---
+HEAD /check HTTP/1.1
+Host: localhost:8080
+
+HTTP/1.1 200 OK
+Content-Type: text/plain
+Content-Length: 42
+
+OPTIONS /api HTTP/1.1
+Host: localhost:8080
+
+HTTP/1.1 200 OK
+Allow: GET,POST,PUT,DELETE,OPTIONS
+Content-Length: 0
+
+GET /redirect HTTP/1.1
+Host: localhost:8080
+
+HTTP/1.1 301 Moved Permanently
+Location: /new-home
+Content-Length: 0
+
+GET /new-home HTTP/1.1
+Host: localhost:8080
+
+HTTP/1.1 200 OK
+Content-Type: text/html
+Content-Length: 10
+
+moved here
+
+PATCH /api/items/2 HTTP/1.1
+Host: localhost:8080
+Content-Type: application/merge-patch+json
+Content-Length: 15
+
+{"name":"patch"}
+
+HTTP/1.1 200 OK
+Content-Length: 0
+
+GET /crash HTTP/1.1
+Host: localhost:8080
+
+HTTP/1.1 500 Internal Server Error
+Content-Length: 21
+
+Internal server error.

@@ -11,7 +11,8 @@ import json
 import logging
 from sqlmodel import Session, select
 
-from ..models.domain import SessionTrace, MessageType, Invariant, Evidence
+from ..models.domain import SessionTrace, MessageType, Invariant, Evidence, ProtocolProject
+from ..protocols.registry import get_protocol_adapter
 from ..tools.ftp_parser import parse_ftp_session
 from ..core.llm_client import call_with_tools
 
@@ -142,6 +143,9 @@ def run_spec_agent(project_id: int, session: Session) -> dict:
     2. Calls Gemini via function calling to extract protocol knowledge
     3. Stores MessageType and Invariant records with evidence
     """
+    project = session.get(ProtocolProject, project_id)
+    adapter = get_protocol_adapter(project.protocol_name if project else "FTP")
+
     docs = session.exec(
         select(SessionTrace).where(
             SessionTrace.project_id == project_id,
@@ -157,26 +161,11 @@ def run_spec_agent(project_id: int, session: Session) -> dict:
     ).all()
 
     doc_content = "\n\n".join(d.raw_content for d in docs) if docs else "(no documentation provided)"
-    trace_summary = _format_trace_summary(traces)
-    observed_commands = _summarize_observed_commands(traces)
-
-    user_message = f"""## Protocol Documentation
-
-{doc_content}
-
-## Observed FTP Commands Across All Traces
-
-{observed_commands}
-
-## Observed Session Trace Patterns (first 10 sessions)
-
-{trace_summary}
-
-Please analyze the above and record all FTP message types, ordering rules, and field constraints you can identify."""
+    user_message = adapter.build_spec_user_message(doc_content, traces)
 
     logger.info("Spec Agent: calling LLM for project %d", project_id)
     tool_calls = call_with_tools(
-        system_prompt=SYSTEM_PROMPT,
+        system_prompt=adapter.spec_system_prompt(),
         user_message=user_message,
         tools=SPEC_TOOLS,
         max_iterations=1,
@@ -294,9 +283,10 @@ Please analyze the above and record all FTP message types, ordering rules, and f
                 created_invariants.append(rule_text)
 
     if not payload:
-        logger.warning("Spec Agent: LLM returned no tool calls, using rule-based fallback")
-        fallback_used = True
-        _apply_fallback(project_id, session, created_message_types, created_invariants)
+        raise RuntimeError(
+            f"Spec Agent: LLM returned no usable tool calls for project {project_id} "
+            "after all retries — aborting without fallback"
+        )
 
     session.commit()
 

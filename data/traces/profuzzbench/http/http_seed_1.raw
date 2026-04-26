@@ -1,0 +1,41 @@
+GET / HTTP/1.1
+Host: localhost
+User-Agent: ProtocolAnalyzer/1.0
+Accept: */*
+Connection: keep-alive
+
+HTTP/1.1 200 OK
+Content-Type: text/html
+Content-Length: 13
+
+Hello, World!
+
+GET /about HTTP/1.1
+Host: localhost
+User-Agent: ProtocolAnalyzer/1.0
+Accept: text/html
+
+HTTP/1.1 200 OK
+Content-Type: text/html
+Content-Length: 20
+
+About page content.
+
+GET /notfound HTTP/1.1
+Host: localhost
+
+HTTP/1.1 404 Not Found
+Content-Length: 9
+
+Not Found
+
+POST /api/data HTTP/1.1
+Host: localhost
+Content-Type: application/json
+Content-Length: 27
+
+{"key": "value", "n": 42}
+
+HTTP/1.1 201 Created
+Content-Length: 0
+

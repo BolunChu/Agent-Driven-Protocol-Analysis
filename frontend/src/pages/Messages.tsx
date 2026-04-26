@@ -2,20 +2,27 @@ import { useEffect, useState } from "react";
 import { Table, Tag, Spin, Empty } from "antd";
 import { api } from "../api/client";
 import type { MessageTypeItem, InvariantItem } from "../api/client";
+import { useProjectContext } from "../context/ProjectContext";
 
 export default function Messages() {
   const [messageTypes, setMessageTypes] = useState<MessageTypeItem[]>([]);
   const [invariants, setInvariants] = useState<InvariantItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const projectId = 1;
+  const { projectId } = useProjectContext();
 
   useEffect(() => {
+    if (!projectId) {
+      setMessageTypes([]);
+      setInvariants([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     Promise.all([api.getMessageTypes(projectId), api.getInvariants(projectId)])
       .then(([mt, inv]) => { setMessageTypes(mt); setInvariants(inv); })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [projectId]);
 
   const columns = [
     {

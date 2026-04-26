@@ -1,0 +1,147 @@
+OPTIONS rtsp://media.local/stream RTSP/1.0
+CSeq: 1
+User-Agent: ProtocolAnalyzer/1.0
+
+RTSP/1.0 200 OK
+CSeq: 1
+Public: OPTIONS, DESCRIBE, SETUP, PLAY, PAUSE, TEARDOWN
+
+DESCRIBE rtsp://media.local/stream RTSP/1.0
+CSeq: 2
+Accept: application/sdp
+
+RTSP/1.0 200 OK
+CSeq: 2
+Content-Type: application/sdp
+Content-Length: 80
+
+SETUP rtsp://media.local/stream/track1 RTSP/1.0
+CSeq: 3
+Transport: RTP/AVP;unicast;client_port=4588-4589
+
+RTSP/1.0 200 OK
+CSeq: 3
+Session: SESS0001
+Transport: RTP/AVP;unicast;client_port=4588-4589;server_port=6970-6971
+
+PLAY rtsp://media.local/stream RTSP/1.0
+CSeq: 4
+Session: SESS0001
+Range: npt=0.000-
+
+RTSP/1.0 200 OK
+CSeq: 4
+Session: SESS0001
+
+TEARDOWN rtsp://media.local/stream RTSP/1.0
+CSeq: 5
+Session: SESS0001
+
+RTSP/1.0 200 OK
+CSeq: 5
+---
+OPTIONS rtsp://vod.local/movie RTSP/1.0
+CSeq: 1
+
+RTSP/1.0 200 OK
+CSeq: 1
+Public: OPTIONS, DESCRIBE, SETUP, PLAY, PAUSE, TEARDOWN
+
+DESCRIBE rtsp://vod.local/movie RTSP/1.0
+CSeq: 2
+
+RTSP/1.0 200 OK
+CSeq: 2
+Content-Type: application/sdp
+
+SETUP rtsp://vod.local/movie/video RTSP/1.0
+CSeq: 3
+Transport: RTP/AVP;unicast;client_port=5000-5001
+
+RTSP/1.0 200 OK
+CSeq: 3
+Session: SESS0002
+Transport: RTP/AVP;unicast;client_port=5000-5001;server_port=7000-7001
+
+PLAY rtsp://vod.local/movie RTSP/1.0
+CSeq: 4
+Session: SESS0002
+Range: npt=10.000-30.000
+
+RTSP/1.0 200 OK
+CSeq: 4
+Session: SESS0002
+
+PAUSE rtsp://vod.local/movie RTSP/1.0
+CSeq: 5
+Session: SESS0002
+
+RTSP/1.0 200 OK
+CSeq: 5
+Session: SESS0002
+
+PLAY rtsp://vod.local/movie RTSP/1.0
+CSeq: 6
+Session: SESS0002
+
+RTSP/1.0 200 OK
+CSeq: 6
+Session: SESS0002
+
+TEARDOWN rtsp://vod.local/movie RTSP/1.0
+CSeq: 7
+Session: SESS0002
+
+RTSP/1.0 200 OK
+CSeq: 7
+---
+OPTIONS rtsp://live.local/channel1 RTSP/1.0
+CSeq: 1
+
+RTSP/1.0 200 OK
+CSeq: 1
+Public: OPTIONS, DESCRIBE, SETUP, PLAY, TEARDOWN, GET_PARAMETER
+
+DESCRIBE rtsp://live.local/badstream RTSP/1.0
+CSeq: 2
+
+RTSP/1.0 404 Not Found
+CSeq: 2
+
+DESCRIBE rtsp://live.local/channel1 RTSP/1.0
+CSeq: 3
+
+RTSP/1.0 200 OK
+CSeq: 3
+Content-Type: application/sdp
+
+SETUP rtsp://live.local/channel1/track0 RTSP/1.0
+CSeq: 4
+Transport: RTP/AVP;unicast;client_port=6000-6001
+
+RTSP/1.0 200 OK
+CSeq: 4
+Session: SESS0003
+
+PLAY rtsp://live.local/channel1 RTSP/1.0
+CSeq: 5
+Session: SESS0003
+
+RTSP/1.0 200 OK
+CSeq: 5
+Session: SESS0003
+
+GET_PARAMETER rtsp://live.local/channel1 RTSP/1.0
+CSeq: 6
+Session: SESS0003
+
+RTSP/1.0 200 OK
+CSeq: 6
+Session: SESS0003
+
+TEARDOWN rtsp://live.local/channel1 RTSP/1.0
+CSeq: 7
+Session: SESS0003
+
+RTSP/1.0 200 OK
+CSeq: 7
